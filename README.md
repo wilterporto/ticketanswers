@@ -61,3 +61,10 @@ Contribuições são bem-vindas! Siga estas etapas para contribuir:
 * **Nome:** Jeferson Penna Alves
 * **Versão:** 1.1.0
 * **Contato:** [jefersonpenna@gmail.com](mailto:jefersonpenna@gmail.com)
+
+
+## **Fork atualização de layout e correção erros sql**
+
+* **Nome:** Wilter Porto
+* **Versão:** 1.1.3
+* **Contato:** [wilter.porto@gmail.com](mailto:wilter.porto@gmail.com)
