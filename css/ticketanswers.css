@@ -1,0 +1,209 @@
+/*
+  -------------------------------------------------------------------------
+  Ticket Answers
+  Copyright (C) 2023 by Jeferson Penna Alves
+  -------------------------------------------------------------------------
+  LICENSE
+  This file is part of Ticket Answers.
+  Ticket Answers is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License, or
+  (at your option) any later version.
+  Ticket Answers is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+  You should have received a copy of the GNU General Public License
+  along with Ticket Answers. If not, see <http://www.gnu.org/licenses/>.
+  --------------------------------------------------------------------------
+*/
+
+:root {
+  --ta-primary: #1e88e5;
+  --ta-primary-light: #e3f2fd;
+  --ta-secondary: #546e7a;
+  --ta-success: #43a047;
+  --ta-warning: #fb8c00;
+  --ta-danger: #e53935;
+  --ta-info: #00acc1;
+  --ta-shadow: 0 4px 20px 0 rgba(0,0,0,0.08);
+  --ta-card-bg: #ffffff;
+  --ta-text-color: #333333;
+  --ta-radius: 8px;
+}
+
+@keyframes bell-ring {
+  0% { transform: rotate(0); }
+  10% { transform: rotate(15deg); }
+  20% { transform: rotate(-15deg); }
+  30% { transform: rotate(15deg); }
+  40% { transform: rotate(-15deg); }
+  50% { transform: rotate(10deg); }
+  60% { transform: rotate(-10deg); }
+  100% { transform: rotate(0); }
+}
+
+.notification-bell i.has-notifications {
+  color: var(--ta-warning) !important;
+  animation: bell-ring 2.5s infinite;
+}
+
+.notification-count {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background-color: var(--ta-danger);
+  color: white;
+  border-radius: 50%;
+  padding: 0 4px;
+  min-width: 18px;
+  height: 18px;
+  font-size: 11px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.notification-bell {
+  position: relative;
+  display: inline-block;
+}
+
+/* Novo Container para Notificações - ASPECTO PREMIUM */
+#ticket-notifications {
+    margin: 20px auto;
+    padding: 25px;
+    background: var(--ta-card-bg);
+    border-radius: var(--ta-radius);
+    box-shadow: var(--ta-shadow);
+    max-width: 1400px;
+}
+
+#ticket-notifications h2 {
+    font-size: 24px;
+    font-weight: 600;
+    margin-bottom: 25px;
+    color: var(--ta-secondary);
+    border-bottom: 2px solid var(--ta-primary-light);
+    padding-bottom: 10px;
+    display: flex;
+    align-items: center;
+}
+
+#ticket-notifications h2::before {
+    content: "\f0f3";
+    font-family: "Font Awesome 5 Free";
+    font-weight: 900;
+    margin-right: 15px;
+    color: var(--ta-primary);
+}
+
+/* Estilização da Tabela */
+table.tab_cadre_fixehov {
+    border-collapse: separate;
+    border-spacing: 0;
+    width: 100% !important;
+    border-radius: var(--ta-radius);
+    overflow: hidden;
+    border: 1px solid #f1f3f5;
+    margin-top: 20px;
+}
+
+table.tab_cadre_fixehov th {
+    background-color: #f8f9fa !important;
+    padding: 15px 12px !important;
+    font-weight: 600 !important;
+    font-size: 13px !important;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 2px solid #edeff2 !important;
+    color: #495057 !important;
+}
+
+table.tab_cadre_fixehov td {
+    padding: 16px 12px !important;
+    font-size: 14px !important;
+    vertical-align: middle !important;
+    border-bottom: 1px solid #f1f3f5 !important;
+}
+
+table.tab_cadre_fixehov tr:hover td {
+    background-color: #f1f8ff !important;
+    cursor: pointer;
+}
+
+/* Estilo para Badges (Tipos e Status) */
+.badge {
+    padding: 6px 12px !important;
+    border-radius: 50px !important;
+    font-weight: 500 !important;
+    font-size: 11px !important;
+    text-transform: uppercase;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.bg-info { background: #0dcaf0 !important; color: #fff !important; }
+.bg-danger { background: #ea868f !important; color: #fff !important; }
+.bg-success { background: #75b798 !important; color: #fff !important; }
+.bg-warning { background: #ffda6a !important; color: #000 !important; }
+.bg-primary { background: #6ea8fe !important; color: #fff !important; }
+.bg-secondary { background: #adb5bd !important; color: #fff !important; }
+
+/* Animações e Efeitos */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+tr[id^="notification-row"] {
+    animation: fadeIn 0.4s ease forwards;
+}
+
+/* Botões Modernos */
+.btn {
+    border-radius: 6px !important;
+    padding: 8px 16px !important;
+    transition: all 0.2s ease !important;
+    font-weight: 500 !important;
+    font-size: 13px !important;
+}
+
+.btn-warning {
+    background-color: var(--ta-warning) !important;
+    border-color: var(--ta-warning) !important;
+    color: white !important;
+}
+
+.btn-warning:hover {
+    background-color: #d17500 !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.btn-group .btn {
+    margin: 0 2px;
+}
+
+/* Paginação e Selos Compactos */
+.select-compact {
+    border-radius: 6px;
+    border: 1px solid #dee2e6;
+    padding: 4px 8px;
+    height: 34px !important;
+}
+
+/* Resumo do Conteúdo */
+table.tab_cadre_fixehov td small {
+    display: block;
+    color: #8c9096;
+    margin-top: 3px;
+}
+
+/* Responsividade de Alta Qualidade */
+@media (max-width: 1200px) {
+    #ticket-notifications { padding: 15px; margin: 10px; }
+    table.tab_cadre_fixehov td, table.tab_cadre_fixehov th { padding: 10px 8px !important; }
+}
