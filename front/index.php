@@ -716,7 +716,7 @@ if ($result && $numNotifications > 0) {
     // Botão Marcar Tudo
     echo "<div>";
     echo "<a href='javascript:void(0)' onclick='markAllAsRead()' class='btn btn-warning shadow-sm'>
-            <i class='fas fa-check-double'></i> " . __("Marcar todos como lido", "ticketanswers") . "
+            <i class='fas fa-check-double' style='margin-right: 8px;'></i> " . __("Marcar todos como lido", "ticketanswers") . "
           </a>";
     echo "</div>";
     
