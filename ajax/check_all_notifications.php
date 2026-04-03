@@ -201,8 +201,8 @@ WHERE
     AND tv.users_id_validate <> $users_id
     AND tv.validation_date > DATE_SUB(NOW(), INTERVAL 30 DAY)";
 
-// Consulta para encontrar respostas de técnicos em chamados do usuário
-$technician_response_query = "SELECT COUNT(DISTINCT tf.id) as technician_response_count
+// Respostas de técnicos em chamados do usuário
+$technician_response_query = "SELECT COUNT(DISTINCT t.id) as technician_response_count
 FROM
     glpi_tickets t
     INNER JOIN glpi_tickets_users tu ON t.id = tu.tickets_id AND tu.type = 1 AND tu.users_id = $users_id
@@ -220,7 +220,7 @@ WHERE
         WHERE tech_user.tickets_id = t.id
         AND tech_user.users_id = tf.users_id
         AND tech_user.type = 2
-    )";  // Adicionado fechamento de aspas aqui
+    )";
 
 // Consulta para encontrar mudanças de status em chamados do usuário
 $status_change_query = "SELECT COUNT(DISTINCT t.id) as status_change_count
@@ -234,8 +234,8 @@ FROM
     )
 WHERE
     v.id IS NULL
-    AND t.status IN (2, 3, 4)
-    AND t.date_mod > DATE_SUB(NOW(), INTERVAL 7 DAY)";  // Adicionado fechamento de aspas aqui
+    AND t.status IN (2, 3, 4, 5)
+    AND t.date_mod > DATE_SUB(NOW(), INTERVAL 7 DAY)";
 
 // Consulta para encontrar motivos de pendência em chamados do usuário
 $pending_reason_query = "SELECT 0 as pending_reason_count"; // Valor padrão se a tabela não existir
@@ -540,7 +540,7 @@ if (empty($union_parts)) {
 } else {
     $unified_sql = implode(" UNION ", $union_parts);
     $unified_count_query = "SELECT COUNT(*) as total FROM (
-        SELECT ticket_id, type FROM ($unified_sql) AS all_notifications GROUP BY ticket_id, type
+        SELECT ticket_id FROM ($unified_sql) AS all_notifications GROUP BY ticket_id
     ) AS unique_notifications";
 }
 

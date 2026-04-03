@@ -632,12 +632,12 @@ UNION
 
 $combined_query_base .= $pending_reason_union;
 
-// Consulta para contar o total de notificações únicas (sem LIMIT)
+// Consulta para contar o total de notificações únicas por chamado (sem LIMIT)
 $count_query = "
 SELECT COUNT(*) as total FROM (
-    SELECT ticket_id, notification_type
+    SELECT ticket_id
     FROM ($combined_query_base) as inner_count_query
-    GROUP BY ticket_id, notification_type
+    GROUP BY ticket_id
 ) as unique_notifications";
 
 // Executar a consulta de contagem
@@ -655,19 +655,19 @@ if ($current_page > $total_pages && $total_pages > 0) {
     $offset_value = ($current_page - 1) * $notifications_per_page;
 }
 
-// Consulta principal simplificada com subconsulta para garantir a exclusividade por ticket e tipo
+// Consulta principal simplificada com subconsulta para garantir a exclusividade por chamado (o mais recente)
 $combined_query = "
 SELECT outer_query.*
 FROM ($combined_query_base) AS outer_query
 INNER JOIN (
-    -- Subconsulta para pegar apenas a notificação mais recente por par (ticket, tipo)
-    SELECT ticket_id, notification_type, MAX(notification_date) as latest_date
+    -- Subconsulta para pegar apenas a notificação mais recente por ticket
+    SELECT ticket_id, MAX(notification_date) as latest_date
     FROM ($combined_query_base) as inner_base
-    GROUP BY ticket_id, notification_type
+    GROUP BY ticket_id
 ) as latest_filter ON 
     outer_query.ticket_id = latest_filter.ticket_id AND 
-    outer_query.notification_type = latest_filter.notification_type AND 
     outer_query.notification_date = latest_filter.latest_date
+GROUP BY outer_query.ticket_id
 ORDER BY outer_query.notification_date DESC
 LIMIT $notifications_per_page OFFSET $offset_value";
 
