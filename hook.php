@@ -68,15 +68,28 @@ function plugin_ticketanswers_update($old_version) {
        }
    }
 
-   // Se estiver atualizando de uma versão anterior à 1.1.1
-   if (version_compare($old_version, '1.1.1', '<')) {
-       // Verificar se a coluna existe e alterar seu tipo
-       if ($DB->fieldExists('glpi_plugin_ticketanswers_views', 'message_id')) {
-           $DB->query("ALTER TABLE `glpi_plugin_ticketanswers_views` 
-                       MODIFY COLUMN `message_id` VARCHAR(20) DEFAULT NULL");
-            
-           // Registrar a alteração no log
-           error_log("Plugin TicketAnswers: Coluna message_id alterada para VARCHAR(20)");
+   // Versão 1.1.4: Reforçar integridade e Chave Única para evitar reexibição
+   if (version_compare($old_version, '1.1.4', '<')) {
+       if ($DB->tableExists('glpi_plugin_ticketanswers_views')) {
+           // 1. Limpar registros com followup_id inválido (bug de versões anteriores)
+           $DB->query("DELETE FROM `glpi_plugin_ticketanswers_views` WHERE `followup_id` = '0' OR `followup_id` = ''");
+           
+           // 2. Remover duplicatas (mantendo apenas o registro mais recente de cada visualização)
+           $DB->query("DELETE v1 FROM `glpi_plugin_ticketanswers_views` v1
+                       INNER JOIN `glpi_plugin_ticketanswers_views` v2 
+                       ON v1.users_id = v2.users_id 
+                       AND v1.ticket_id = v2.ticket_id 
+                       AND v1.followup_id = v2.followup_id
+                       WHERE v1.id < v2.id");
+           
+           // 3. Adicionar a UNIQUE KEY se não existir
+           // Em vez de usar information_schema, tentamos adicionar e silenciamos se já existir
+           try {
+               $DB->query("ALTER TABLE `glpi_plugin_ticketanswers_views` 
+                           ADD UNIQUE KEY `unique_view` (`users_id`, `ticket_id`, `followup_id`)");
+           } catch (Exception $e) { /* Já existe ou erro na query */ }
+           
+           error_log("Plugin TicketAnswers: Integridade da tabela de visualizações reforçada na v1.1.4");
        }
    }
     

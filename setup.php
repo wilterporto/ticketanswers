@@ -19,7 +19,7 @@
   --------------------------------------------------------------------------
 */
 
-define('PLUGIN_TICKETANSWERS_VERSION', '1.1.3');
+define('PLUGIN_TICKETANSWERS_VERSION', '1.1.4');
 
 
 
@@ -43,7 +43,14 @@ function plugin_init_ticketanswers() {
         $PLUGIN_HOOKS['add_css']['ticketanswers'][] = 'css/self_service_fixes.css';
         
         Plugin::registerClass('PluginTicketanswersProfile', ['addtabon' => 'Profile']);
-        $PLUGIN_HOOKS['menu_toadd']['ticketanswers'] = ['plugins' => 'PluginTicketanswersMenu'];
+        Plugin::registerClass('PluginTicketanswersConfig');
+        Plugin::registerClass('PluginTicketanswersMenu');
+        
+        $PLUGIN_HOOKS['menu_toadd']['ticketanswers'] = [
+            'plugins' => 'PluginTicketanswersMenu'
+        ];
+        
+        $PLUGIN_HOOKS['config_page']['ticketanswers'] = 'front/config.php';
     }
 }
 /**

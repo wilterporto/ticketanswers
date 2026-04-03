@@ -28,16 +28,17 @@ function plugin_ticketanswers_install() {
     // Criar tabela de visualizações se não existir
     if (!$DB->tableExists('glpi_plugin_ticketanswers_views')) {
         $query = "CREATE TABLE `glpi_plugin_ticketanswers_views` (
-            `id` int(11) NOT NULL AUTO_INCREMENT,
-            `ticket_id` INT(11) NULL DEFAULT NULL,
-            `users_id` int(11) NOT NULL,
-            `followup_id` int(11) NULL DEFAULT NULL,
-            `viewed_at` datetime NOT NULL,
+            `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
+            `ticket_id` VARCHAR(255) NOT NULL,
+            `users_id` int(11) unsigned NOT NULL,
+            `followup_id` VARCHAR(255) NOT NULL,
+            `viewed_at` timestamp NOT NULL,
+            `message_id` VARCHAR(255) DEFAULT NULL,
             PRIMARY KEY (`id`),
-            KEY `users_id` (`users_id`),
-            KEY `followup_id` (`followup_id`),
-            KEY `ticket_id` (`ticket_id`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci";
+            UNIQUE KEY `unique_view` (`users_id`, `ticket_id`, `followup_id`),
+            INDEX `users_id` (`users_id`),
+            INDEX `ticket_id` (`ticket_id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
         
         $DB->query($query) or die("Error creating glpi_plugin_ticketanswers_views table: " . $DB->error());
     }

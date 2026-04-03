@@ -4,7 +4,7 @@ include ("../../../inc/includes.php");
 // Proteção: apenas administradores com direito "config" podem acessar
 Session::checkRight("config", READ);
 
-Html::header("Ticket Answers", $_SERVER['PHP_SELF'], "plugins", "PluginTicketanswersMenu", "config");
+Html::header("Ticket Answers", $_SERVER['PHP_SELF'], "plugins", "ticketanswers", "config");
 
 // Salvar configurações se o formulário foi enviado
 if (isset($_POST['update'])) {

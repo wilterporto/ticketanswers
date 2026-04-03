@@ -19,38 +19,24 @@ if ($ticket_id > 0) {
     // Determinar o valor de followup_id com base no tipo de notificação
     $actual_followup_id = $followup_id;
     
+    // Mapeamento de IDs especiais (Legado e Cálculos)
     if ($notification_type === 'group') {
-        // Para notificações de grupo, usamos um valor positivo baseado no ID do ticket
         $actual_followup_id = $ticket_id + 10000000;
     } else if ($notification_type === 'observer' || $notification_type === 'group_observer') {
         $actual_followup_id = $ticket_id + 20000000;
     } else if ($notification_type === 'assigned') {
         $actual_followup_id = $ticket_id + 30000000;
-    } else if ($notification_type === 'validation') {
-        // Para notificações de validação, usar o ID real da validação
-        $actual_followup_id = intval($followup_id);
-    } else if ($notification_type === 'status_change') {
-        // Para notificações de status, usar o followup_id recebido se já tiver o formato correto, 
-        // caso contrário construir um (legado)
-        if (is_string($followup_id) && strpos($followup_id, 'status_') === 0) {
-            $actual_followup_id = $followup_id;
-        } else {
-            $actual_followup_id = "status_{$ticket_id}_" . ($followup_id > 0 ? $followup_id : "any");
-        }
-        error_log("DEBUG: Usando id de status: $actual_followup_id");
-    } else if ($notification_type === 'pending_reason') {
-        // Para motivos de pendência, criar um ID específico
+    } else if ($notification_type === 'pending_reason' && is_numeric($followup_id)) {
+        // Se for antigo (só número), usa o cálculo. Se for string (pending_...), usa a string.
         $actual_followup_id = $ticket_id + 50000000;
-    } else if ($notification_type === 'technician_response') {
-        // Para respostas de técnicos, usar o ID do followup diretamente
-        $actual_followup_id = intval($followup_id);
-    } else {
-        // Para outros tipos, garantir que o followup_id seja tratado como número
-        $actual_followup_id = intval($followup_id);
     }
     
-    // Adicionar log para depuração detalhada
-    error_log("DEBUG: Após cálculo - notification_type=$notification_type, ticket_id=$ticket_id, original_followup_id=$followup_id, actual_followup_id=$actual_followup_id");
+    // Para todos os outros casos, se for uma string (contém letras ou sublinhados), não converter!
+    if (!is_numeric($actual_followup_id)) {
+        $actual_followup_id = $DB->escape($actual_followup_id);
+    }
+    
+    error_log("DEBUG: Processamento de ID - tipo=$notification_type, ticket=$ticket_id, calculado=$actual_followup_id");
     
     // Para notificações de status, tratamento especial com aspas
     if ($notification_type === 'status_change') {

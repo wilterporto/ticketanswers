@@ -3,7 +3,7 @@ include ("../../../inc/includes.php");
 
 Session::checkLoginUser();
 
-Html::header("Ticket Answers", $_SERVER['PHP_SELF'], "plugins", "PluginTicketanswersMenu");
+Html::header("Ticket Answers", $_SERVER['PHP_SELF'], "plugins", "ticketanswers");
 
 // Carregar CSS primeiro
 echo Html::css("/plugins/ticketanswers/css/ticketanswers.css");

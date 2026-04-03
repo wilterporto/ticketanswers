@@ -16,52 +16,14 @@ function addNotificationBell() {
     // Tentar várias abordagens em sequência
     let success = false;
     
-    // 1. Método padrão: campo de pesquisa global
-    if (!success) {
-        const global_search = $('input[name="globalsearch"], input.form-control-search, .search-input');
-        if (global_search.length > 0) {
-            console.log('Campo de pesquisa global encontrado:', global_search.length);
-            let container = global_search.closest('.input-group');
-            if (container.length === 0) {
-                container = global_search.parent();
-            }
-            if (container.length > 0) {
-                injectNotificationButton(global_search, container);
-                success = true;
-                console.log('Sino adicionado ao campo de pesquisa global');
-            }
-        }
-    }
-    
-    // 2. FormCreator: tentar encontrar elementos específicos do FormCreator
-    if (!success) {
-        const formcreatorHeader = $('.plugin_formcreator_userForm_header, .plugin_formcreator_header');
-        if (formcreatorHeader.length > 0) {
-            console.log('Cabeçalho do FormCreator encontrado');
-            
-            // Criar um contêiner para o sino
-            const bellContainer = $('<div class="notification-container" style="margin-left: auto; margin-right: 15px; display: flex; align-items: center;"></div>');
-            bellContainer.append(getNotificationButton());
-            bellContainer.append(getSoundToggleButton());
-            
-            // Adicionar ao cabeçalho do FormCreator
-            formcreatorHeader.append(bellContainer);
-            
-            // Configurar eventos de clique
-            setupBellEvents(bellContainer);
-            success = true;
-            console.log('Sino adicionado ao cabeçalho do FormCreator');
-        }
-    }
-    
-    // 3. Menu de usuário no canto superior direito
+    // 1. Menu de usuário no canto superior direito (Melhor opção para o layout)
     if (!success) {
         const userMenu = $('.navbar .navbar-nav:last-child, .navbar .ms-auto, header .navbar-nav:last-child, .user-menu');
         if (userMenu.length > 0) {
             console.log('Menu de usuário encontrado');
             
             // Criar um novo item de menu para o sino
-            const bellItem = $('<li class="nav-item" style="display: flex; align-items: center; margin-right: 10px;"></li>');
+            const bellItem = $('<li class="nav-item" style="display: flex; align-items: center; margin-right: 15px;"></li>');
             bellItem.append(getNotificationButton());
             bellItem.append(getSoundToggleButton());
             
@@ -74,54 +36,76 @@ function addNotificationBell() {
             console.log('Sino adicionado ao menu de usuário');
         }
     }
-    
-    // 4. Cabeçalho principal
+
+    // 2. Interface simplificada (self-service) - Cabeçalho específico
+    if (!success) {
+        const selfServiceHeader = $('.navbar.self-service, .self-service .navbar, .self-service-header, .navbar-nav.login-info');
+        if (selfServiceHeader.length > 0) {
+            console.log('Cabeçalho da interface simplificada encontrado');
+            
+            const bellContainer = $('<div class="notification-nav-item" style="display: flex; align-items: center; margin-right: 15px;"></div>');
+            bellContainer.append(getNotificationButton());
+            bellContainer.append(getSoundToggleButton());
+            
+            selfServiceHeader.prepend(bellContainer);
+            setupBellEvents(bellContainer);
+            success = true;
+        }
+    }
+
+    // 3. Cabeçalho principal (Logo/Título)
     if (!success) {
         const header = $('header, .navbar, .main-header, #header_top, .top-bar');
         if (header.length > 0) {
             console.log('Cabeçalho principal encontrado');
             
-            // Criar um contêiner para o sino
             const bellContainer = $('<div class="notification-container" style="margin-left: auto; margin-right: 15px; display: flex; align-items: center;"></div>');
             bellContainer.append(getNotificationButton());
             bellContainer.append(getSoundToggleButton());
             
-            // Adicionar ao cabeçalho
             header.first().append(bellContainer);
-            
-            // Configurar eventos de clique
             setupBellEvents(bellContainer);
             success = true;
-            console.log('Sino adicionado ao cabeçalho principal');
+        }
+    }
+
+    // 4. Campo de pesquisa global (Último recurso, pois pode alterar o layout da busca)
+    if (!success) {
+        const global_search = $('input[name="globalsearch"], input.form-control-search, .search-input');
+        if (global_search.length > 0) {
+            console.log('Campo de pesquisa global encontrado');
+            // NOVO: Em vez de injetar DENTRO do input-group, injetamos DEPOIS do container para não quebrar o layout
+            let container = global_search.closest('.input-group');
+            if (container.length === 0) {
+                container = global_search.parent();
+            }
+            if (container.length > 0) {
+                const wrapper = $('<div class="notification-search-wrapper" style="display: flex; align-items: center; margin-left: 10px;"></div>');
+                wrapper.append(getNotificationButton());
+                wrapper.append(getSoundToggleButton());
+                container.after(wrapper);
+                setupBellEvents(wrapper);
+                success = true;
+                console.log('Sino adicionado após o campo de pesquisa global');
+            }
         }
     }
     
-    // 5. Interface simplificada (self-service)
+    // 5. FormCreator
     if (!success) {
-        const selfServiceHeader = $('.navbar.self-service, .self-service .navbar, .self-service-header');
-        if (selfServiceHeader.length > 0) {
-            console.log('Cabeçalho da interface simplificada encontrado');
-            
-            // Criar um contêiner para o sino
+        const formcreatorHeader = $('.plugin_formcreator_userForm_header, .plugin_formcreator_header');
+        if (formcreatorHeader.length > 0) {
             const bellContainer = $('<div class="notification-container" style="margin-left: auto; margin-right: 15px; display: flex; align-items: center;"></div>');
             bellContainer.append(getNotificationButton());
             bellContainer.append(getSoundToggleButton());
-            
-            // Adicionar ao cabeçalho da interface simplificada
-            selfServiceHeader.append(bellContainer);
-            
-            // Configurar eventos de clique
+            formcreatorHeader.append(bellContainer);
             setupBellEvents(bellContainer);
             success = true;
-            console.log('Sino adicionado ao cabeçalho da interface simplificada');
         }
     }
     
-    // 6. Último recurso: adicionar como elemento flutuante
+    // 6. Elemento flutuante (Fallback final)
     if (!success) {
-        console.log('Nenhum local adequado encontrado, adicionando sino flutuante');
-        
-        // Criar um contêiner flutuante para o sino
         const floatingBell = $(`
             <div class="floating-notification-container" style="
                 position: fixed;
@@ -135,17 +119,11 @@ function addNotificationBell() {
                 box-shadow: 0 2px 5px rgba(0,0,0,0.2);
             "></div>
         `);
-        
         floatingBell.append(getNotificationButton());
         floatingBell.append(getSoundToggleButton());
-        
-        // Adicionar ao corpo da página
         $('body').append(floatingBell);
-        
-        // Configurar eventos de clique
         setupBellEvents(floatingBell);
         success = true;
-        console.log('Sino adicionado como elemento flutuante');
     }
     
     if (!success) {
@@ -172,23 +150,7 @@ function getSoundToggleButton() {
         </button>`);
 }
 
-// Função para injetar o botão de notificação
-function injectNotificationButton(input_element, container = undefined) {
-    if (input_element !== undefined && input_element.length > 0) {
-        if (container !== undefined) {
-            container.append(getNotificationButton());
-            // Adicionar botão de toggle de som ao lado do sino
-            container.find('.notification-bell').after(getSoundToggleButton());
-        } else {
-            input_element.after(getNotificationButton());
-            container = input_element.parent();
-            // Adicionar botão de toggle de som ao lado do sino
-            container.find('.notification-bell').after(getSoundToggleButton());
-        }
-        // Configurar eventos de clique
-        setupBellEvents(container);
-    }
-}
+// Removida função injectNotificationButton que injetava dentro do input-group
 
 // Método auxiliar para configurar eventos de clique
 function setupBellEvents(container) {
