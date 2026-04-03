@@ -19,10 +19,10 @@ $sound_volume = $config['sound_volume'] ?? 70;
 // Verificar se há um valor selecionado pelo usuário
 $notifications_per_page = isset($_GET['per_page']) ? intval($_GET['per_page']) : ($config['notifications_per_page'] ?? 30);
 
-// Garantir que o valor seja um dos permitidos
-$allowed_values = [10, 30, 50, 100];
+// Garantir que o valor seja um dos permitidos (adicionado 20)
+$allowed_values = [10, 20, 30, 50, 100];
 if (!in_array($notifications_per_page, $allowed_values)) {
-    $notifications_per_page = 30; // Valor padrão se não for válido
+    $notifications_per_page = ($config['notifications_per_page'] ?? 30); // Usar valor da configuração por padrão
 }
 
 // Capturar página atual para paginação
@@ -727,7 +727,7 @@ if ($result && $numNotifications > 0) {
     echo "<form method='get' action='' class='form-inline' style='display: flex; align-items: center; margin-right: 20px;'>";
     echo "<label for='per_page' style='margin-right: 10px; font-weight: 500;'>" . __("Exibir:", "ticketanswers") . "</label>";
     echo "<select name='per_page' id='per_page' class='form-control select-compact' onchange='this.form.submit()'>";
-    foreach ([10, 30, 50, 100] as $value) {
+    foreach ([10, 20, 30, 50, 100] as $value) {
         $selected = ($value == $notifications_per_page) ? "selected" : "";
         echo "<option value='$value' $selected>$value</option>";
     }
