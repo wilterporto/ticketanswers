@@ -29,14 +29,8 @@ if (!in_array($notifications_per_page, $allowed_values)) {
 $current_page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
 $offset_value = ($current_page - 1) * $notifications_per_page;
 
-// Adicionar configurações JavaScript
-echo "<script>
-window.ticketAnswersConfig = {
-    checkInterval: " . $check_interval . ",
-    enableSound: " . ($enable_sound ? 'true' : 'false') . ",
-    soundVolume: " . $sound_volume . "
-};
-</script>";
+// Configurações agora carregadas globalmente via js/config_loader.php
+// (Linhas 33-39 removidas)
 
 // Carregar o script unificado de notificações
 echo Html::script("/plugins/ticketanswers/js/unified_notifications.js");

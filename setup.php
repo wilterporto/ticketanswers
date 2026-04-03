@@ -31,6 +31,7 @@ function plugin_init_ticketanswers() {
     if (Session::getLoginUserID()) {
         // Opção 1: Usando array para múltiplos scripts
         $PLUGIN_HOOKS['add_javascript']['ticketanswers'] = [
+            'js/config_loader.php',
             'js/unified_notifications.js',
             'js/notification_bell.js',
             'js/fix_layout.js'

@@ -10,27 +10,36 @@ class PluginTicketanswersMenu extends CommonGLPI {
    static function getMenuContent() {
       global $CFG_GLPI;
       
-     // $menu = [];
-     // $menu['title'] = self::getMenuName();
-     // $menu['page'] = "/plugins/ticketanswers/front/index.php"; // Alterado de menu.php para index.php
-     // $menu['icon'] = "fas fa-bell"; // Ícone de sino
+      $menu = [
+          'title' => self::getMenuName(),
+          'page'  => '/plugins/ticketanswers/front/index.php',
+          'icon'  => 'fas fa-bell',
+          'options' => [
+              'index' => [
+                  'title' => __('Ver Notificações', 'ticketanswers'),
+                  'page'  => '/plugins/ticketanswers/front/index.php',
+                  'icon'  => 'fas fa-list',
+              ]
+          ]
+      ];
       
-      // Adicionar submenus se necessário
-      //$menu['options'] = [
-      //   'config' => [
-      //      'title' => __('Configuração', 'ticketanswers'),
-      //      'page'  => '/plugins/ticketanswers/front/config.php',
-      //      'icon'  => 'fas fa-cog',
-      //   ],
-      //   'stats' => [
-      //      'title' => __('Estatísticas', 'ticketanswers'),
-      //      'page'  => '/plugins/ticketanswers/front/stats.php',
-      //      'icon'  => 'fas fa-chart-bar',
-      //   ],
-      //];
+      if (Session::haveRight("config", READ)) {
+          $menu['options']['config'] = [
+              'title' => __('Configuração', 'ticketanswers'),
+              'page'  => '/plugins/ticketanswers/front/config.php',
+              'icon'  => 'fas fa-cog',
+          ];
+          
+          $menu['options']['stats'] = [
+              'title' => __('Estatísticas', 'ticketanswers'),
+              'page'  => '/plugins/ticketanswers/front/stats.php',
+              'icon'  => 'fas fa-chart-bar',
+          ];
+      }
       
       return $menu;
    }   
+   
    // Adicione estes métodos para a funcionalidade de aba em tickets
    function getTabNameForItem(CommonGLPI $item, $withtemplate = 0) {
       if ($item->getType() == 'Ticket') {
