@@ -41,7 +41,7 @@ echo "<script>
 function markAllAsRead() {
     if (confirm('" . __("Deseja realmente marcar todas as notificações como lidas?", "ticketanswers") . "')) {
         $.ajax({
-            url: '../ajax/mark_all_as_read.php',
+            url: CFG_GLPI.root_doc + '/plugins/ticketanswers/ajax/mark_all_as_read.php',
             type: 'GET',
             data: {
                 ajax: 1
@@ -65,7 +65,7 @@ function markNotificationAsRead(ticketId, followupId, type, newTab) {
     
     // Fazer a requisição AJAX para marcar como lido
     $.ajax({
-        url: '../ajax/mark_notification_as_read.php',
+        url: CFG_GLPI.root_doc + '/plugins/ticketanswers/ajax/mark_notification_as_read.php',
         type: 'GET',
         data: {
             ticket_id: ticketId,
@@ -255,7 +255,7 @@ function assignTicketToMe(ticketId) {
     
     if (confirm('" . __("Deseja realmente assumir este chamado?", "ticketanswers") . "')) {
         $.ajax({
-            url: '../ajax/assign_ticket.php',
+            url: CFG_GLPI.root_doc + '/plugins/ticketanswers/ajax/assign_ticket.php',
             type: 'POST',
             data: {
                 ticket_id: ticketId
@@ -685,7 +685,7 @@ echo "<script>
 document.addEventListener('DOMContentLoaded', function() {
     // Buscar a contagem atual das notificações via AJAX
     $.ajax({
-        url: '../ajax/check_all_notifications.php',
+        url: CFG_GLPI.root_doc + '/plugins/ticketanswers/ajax/check_all_notifications.php',
         type: 'GET',
         dataType: 'json',
         success: function(data) {

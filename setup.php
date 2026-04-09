@@ -33,7 +33,6 @@ function plugin_init_ticketanswers() {
         $PLUGIN_HOOKS['add_javascript']['ticketanswers'] = [
             'js/config_loader.php',
             'js/unified_notifications.js',
-            'js/notification_bell.js',
             'js/fix_layout.js'
         ];
         
