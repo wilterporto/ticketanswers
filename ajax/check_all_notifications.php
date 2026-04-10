@@ -59,9 +59,7 @@ $since = isset($_GET['since']) ? intval($_GET['since']) : 0;
 // Adicionar log para depuração
 error_log("DEBUG: Iniciando verificação de notificações para usuário $users_id");
 
-// Consulta para encontrar tickets atribuídos ao técnico com respostas não vistas (DESATIVADO)
-$followup_query = "SELECT 0 as followup_count";
-/*
+// Consulta para encontrar tickets atribuídos ao técnico com respostas não vistas
 $followup_query = "SELECT COUNT(DISTINCT tf.id) as followup_count
 FROM
     glpi_tickets t
@@ -76,6 +74,7 @@ WHERE
     tf.users_id <> $users_id
     AND v.id IS NULL
     AND t.status != 6
+    AND tf.is_private = 0
     AND tf.date > (
         SELECT
             COALESCE(MAX(date), '1970-01-01')
@@ -86,7 +85,6 @@ WHERE
             AND tf2.itemtype = 'Ticket'
             AND tf2.users_id = $users_id
     )";
-*/
 
 // Consulta para encontrar tickets recusados
 $refused_query = "SELECT COUNT(DISTINCT its.id) as refused_count
@@ -211,15 +209,17 @@ FROM
         v.users_id = $users_id AND
         v.followup_id = CAST(tf.id AS CHAR)
     )
-WHERE
-    v.id IS NULL
-    AND t.status != 6
-    AND tf.is_private = 0
-    AND EXISTS (
-        SELECT 1 FROM glpi_tickets_users tech_user
-        WHERE tech_user.tickets_id = t.id
-        AND tech_user.users_id = tf.users_id
-        AND tech_user.type = 2
+    WHERE
+        v.id IS NULL
+        AND tf.users_id <> $users_id
+        AND t.status != 6
+        AND tf.is_private = 0
+        AND EXISTS (
+            SELECT 1 FROM glpi_tickets_users tech_user
+            WHERE tech_user.tickets_id = t.id
+            AND tech_user.users_id = tf.users_id
+            AND tech_user.type = 2
+        )
     )";
 
 // Consulta para encontrar mudanças de status em chamados do usuário
@@ -230,7 +230,10 @@ FROM
     LEFT JOIN glpi_plugin_ticketanswers_views v ON (
         v.users_id = $users_id AND
         v.ticket_id = t.id AND
-        v.followup_id = CONCAT('status_', t.id, '_', t.status)
+        (
+            v.followup_id = CONCAT('status_', t.id, '_', t.status) OR
+            v.followup_id = CONCAT('status_', t.id, '_any')
+        )
     )
 WHERE
     v.id IS NULL
@@ -400,7 +403,15 @@ if ($can_see_observe) {
                           )
                           WHERE
                               v.id IS NULL
-                              AND t.status IN (1, 2, 3, 4)";  // Incluindo status 3 e 4 também
+                              AND t.status IN (1, 2, 3, 4)
+                              AND NOT EXISTS (
+                                  SELECT 1 FROM glpi_tickets_users requester
+                                  WHERE requester.tickets_id = t.id AND requester.users_id = $users_id AND requester.type = 1
+                              )
+                              AND NOT EXISTS (
+                                  SELECT 1 FROM glpi_tickets_users technician
+                                  WHERE technician.tickets_id = t.id AND technician.users_id = $users_id AND technician.type = 2
+                              )";  // Incluindo status 3 e 4 também
 
     $force_observer_result = $DB->query($force_observer_sql);
     if ($force_observer_result && $DB->numrows($force_observer_result) > 0) {
@@ -477,7 +488,15 @@ if ($can_see_observe) {
                      FROM glpi_tickets t
                      INNER JOIN glpi_tickets_users tu ON t.id = tu.tickets_id AND tu.type = 3 AND tu.users_id = $users_id
                      LEFT JOIN glpi_plugin_ticketanswers_views v ON (v.users_id = $users_id AND v.ticket_id = t.id AND v.followup_id = CAST(t.id + 20000000 AS CHAR))
-                     WHERE v.id IS NULL AND t.status IN (1, 2, 3, 4)";
+                     WHERE v.id IS NULL AND t.status IN (1, 2, 3, 4)
+                     AND NOT EXISTS (
+                         SELECT 1 FROM glpi_tickets_users requester
+                         WHERE requester.tickets_id = t.id AND requester.users_id = $users_id AND requester.type = 1
+                     )
+                     AND NOT EXISTS (
+                         SELECT 1 FROM glpi_tickets_users technician
+                         WHERE technician.tickets_id = t.id AND technician.users_id = $users_id AND technician.type = 2
+                     )";
 
     $union_parts[] = "SELECT t.id AS ticket_id, t.id + 20000000 AS followup_id, tf.date AS notification_date, 'group_observer' AS type
                      FROM glpi_tickets t
@@ -496,7 +515,20 @@ if ($can_see_own) {
                      INNER JOIN glpi_itilfollowups tf ON t.id = tf.items_id AND tf.itemtype = 'Ticket'
                      LEFT JOIN glpi_plugin_ticketanswers_views v ON (v.users_id = $users_id AND v.followup_id = CAST(tf.id AS CHAR))
                      WHERE v.id IS NULL AND t.status != 6 AND tf.is_private = 0
+                     AND tf.users_id <> $users_id
                      AND EXISTS (SELECT 1 FROM glpi_tickets_users tech_user WHERE tech_user.tickets_id = t.id AND tech_user.users_id = tf.users_id AND tech_user.type = 2)";
+}
+
+// Respostas em chamados onde o usuário é o Técnico (Atribuído)
+if ($can_see_assign) {
+    $union_parts[] = "SELECT t.id AS ticket_id, tf.id AS followup_id, tf.date AS notification_date, 'followup' AS type
+                     FROM glpi_tickets t
+                     INNER JOIN glpi_tickets_users tu ON t.id = tu.tickets_id AND tu.type = 2 AND tu.users_id = $users_id
+                     INNER JOIN glpi_itilfollowups tf ON t.id = tf.items_id AND tf.itemtype = 'Ticket'
+                     LEFT JOIN glpi_plugin_ticketanswers_views v ON (v.users_id = $users_id AND v.followup_id = CAST(tf.id AS CHAR))
+                     WHERE v.id IS NULL AND t.status != 6 AND tf.is_private = 0
+                     AND tf.users_id <> $users_id
+                     AND tf.date > (SELECT COALESCE(MAX(date), '1970-01-01') FROM glpi_itilfollowups tf2 WHERE tf2.items_id = t.id AND tf2.itemtype = 'Ticket' AND tf2.users_id = $users_id)";
 }
 
 // Mudanças de status (Proprietário)
@@ -504,7 +536,14 @@ if ($can_see_own) {
     $union_parts[] = "SELECT t.id AS ticket_id, CONCAT('status_', t.id, '_', t.status) AS followup_id, t.date_mod AS notification_date, 'status_change' AS type
                      FROM glpi_tickets t
                      INNER JOIN glpi_tickets_users tu ON t.id = tu.tickets_id AND tu.type = 1 AND tu.users_id = $users_id
-                     LEFT JOIN glpi_plugin_ticketanswers_views v ON (v.users_id = $users_id AND v.ticket_id = t.id AND v.followup_id = CONCAT('status_', t.id, '_', t.status))
+                     LEFT JOIN glpi_plugin_ticketanswers_views v ON (
+                         v.users_id = $users_id AND 
+                         v.ticket_id = t.id AND 
+                         (
+                             v.followup_id = CONCAT('status_', t.id, '_', t.status) OR
+                             v.followup_id = CONCAT('status_', t.id, '_any')
+                         )
+                     )
                      WHERE v.id IS NULL AND t.status IN (2, 3, 4, 5) AND t.date_mod > DATE_SUB(NOW(), INTERVAL 7 DAY)";
 }
 

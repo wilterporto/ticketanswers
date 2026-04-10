@@ -378,7 +378,46 @@ $combined_query_base = "(
             SELECT 1 FROM glpi_tickets_users tech_user
             WHERE tech_user.tickets_id = t.id
             AND tech_user.users_id = tf.users_id
-            AND tech_user.type = 2
+        )
+)
+UNION
+(
+    -- Respostas em chamados atribuídos ao usuário (Técnico)
+    SELECT
+        t.id AS ticket_id,
+        t.name AS ticket_name,
+        t.content AS ticket_content,
+        t.status AS ticket_status,
+        tf.id AS followup_id,
+        tf.date AS notification_date,
+        tf.content AS followup_content,
+        u.name AS user_name,
+        NULL AS group_name,
+        NULL AS refuse_reason,
+        'followup' AS notification_type
+    FROM
+        glpi_tickets t
+        INNER JOIN glpi_tickets_users tu ON t.id = tu.tickets_id AND tu.type = 2 AND tu.users_id = $users_id
+        INNER JOIN glpi_itilfollowups tf ON t.id = tf.items_id AND tf.itemtype = 'Ticket'
+        LEFT JOIN glpi_users u ON tf.users_id = u.id
+        LEFT JOIN glpi_plugin_ticketanswers_views v ON (
+            v.users_id = $users_id AND
+            v.followup_id = CAST(tf.id AS CHAR)
+        )
+    WHERE
+        tf.users_id <> $users_id
+        AND v.id IS NULL
+        AND t.status != 6
+        AND tf.is_private = 0
+        AND tf.date > (
+            SELECT
+                COALESCE(MAX(date), '1970-01-01')
+            FROM
+                glpi_itilfollowups tf2
+            WHERE
+                tf2.items_id = t.id
+                AND tf2.itemtype = 'Ticket'
+                AND tf2.users_id = $users_id
         )
 )
 UNION
@@ -657,11 +696,11 @@ if ($current_page > $total_pages && $total_pages > 0) {
 
 // Consulta principal simplificada com subconsulta para garantir a exclusividade por chamado (o mais recente)
 $combined_query = "
-SELECT outer_query.*
+SELECT outer_query.*, latest_filter.total_count
 FROM ($combined_query_base) AS outer_query
 INNER JOIN (
-    -- Subconsulta para pegar apenas a notificação mais recente por ticket
-    SELECT ticket_id, MAX(notification_date) as latest_date
+    -- Subconsulta para pegar apenas a notificação mais recente por ticket e a contagem total
+    SELECT ticket_id, MAX(notification_date) as latest_date, COUNT(*) as total_count
     FROM ($combined_query_base) as inner_base
     GROUP BY ticket_id
 ) as latest_filter ON 
@@ -759,6 +798,7 @@ if ($result && $numNotifications > 0) {
     echo "<th>" . __("Ticket", "ticketanswers") . "</th>";
     echo "<th>" . __("Data", "ticketanswers") . "</th>";
     echo "<th>" . __("Tipo", "ticketanswers") . "</th>";
+    echo "<th>" . __("Qtd", "ticketanswers") . "</th>";
     echo "<th>" . __("Status", "ticketanswers") . "</th>";
     echo "<th>" . __("Usuário/Grupo", "ticketanswers") . "</th>";
     echo "<th>" . __("Conteúdo", "ticketanswers") . "</th>";
@@ -880,6 +920,9 @@ switch ($notification_type) {
             echo "<span class='badge bg-secondary text-white'>" . __("Outro", "ticketanswers") . "</span>";
     }
     echo "</td>";
+    
+    // Qtd
+    echo "<td style='text-align: center; font-weight: bold;'>" . $data['total_count'] . "</td>";
 
     // Status do chamado
     echo "<td>" . Ticket::getStatus($data['ticket_status']) . "</td>";
