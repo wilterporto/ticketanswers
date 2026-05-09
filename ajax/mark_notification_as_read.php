@@ -112,6 +112,94 @@ if ($ticket_id > 0) {
             $success = false;
         }
     }
+
+    // Marcar também TODAS as outras notificações deste mesmo ticket como lidas para este usuário
+    try {
+        $union_parts = [];
+
+        // Acompanhamentos (Followups)
+        $union_parts[] = "(
+            SELECT t.id AS ticket_id, CAST(tf.id AS CHAR) AS followup_id
+            FROM glpi_tickets t
+            INNER JOIN glpi_itilfollowups tf ON t.id = tf.items_id AND tf.itemtype = 'Ticket'
+            LEFT JOIN glpi_plugin_ticketanswers_views v ON (v.users_id = $users_id AND v.followup_id = CAST(tf.id AS CHAR))
+            WHERE t.id = $ticket_id AND tf.users_id <> $users_id AND v.id IS NULL AND t.status != 6 AND tf.is_private = 0
+            AND tf.date > (
+                SELECT COALESCE(MAX(date), '1970-01-01')
+                FROM glpi_itilfollowups tf2
+                WHERE tf2.items_id = t.id AND tf2.itemtype = 'Ticket' AND tf2.users_id = $users_id
+            )
+        )";
+
+        // Observador Individual (notificações do chamado em si)
+        $union_parts[] = "(
+            SELECT t.id AS ticket_id, CAST(t.id + 20000000 AS CHAR) AS followup_id
+            FROM glpi_tickets t
+            LEFT JOIN glpi_plugin_ticketanswers_views v ON (v.users_id = $users_id AND v.ticket_id = t.id AND v.followup_id = CAST(t.id + 20000000 AS CHAR))
+            WHERE t.id = $ticket_id AND v.id IS NULL AND t.status IN (1, 2, 3, 4)
+        )";
+
+        // Chamados Recusados
+        $union_parts[] = "(
+            SELECT t.id AS ticket_id, CAST(its.id AS CHAR) AS followup_id
+            FROM glpi_tickets t
+            INNER JOIN (SELECT items_id, MAX(id) as latest_id FROM glpi_itilsolutions WHERE status = 4 AND itemtype = 'Ticket' GROUP BY items_id) latest ON t.id = latest.items_id
+            INNER JOIN glpi_itilsolutions its ON its.id = latest.latest_id
+            LEFT JOIN glpi_plugin_ticketanswers_views v ON (v.users_id = $users_id AND v.followup_id = CAST(its.id AS CHAR))
+            WHERE t.id = $ticket_id AND its.users_id_approval <> $users_id AND v.id IS NULL AND t.status != 6
+        )";
+
+        // Validações (Como validador)
+        $union_parts[] = "(
+            SELECT t.id AS ticket_id, CAST(tv.id AS CHAR) AS followup_id
+            FROM glpi_ticketvalidations tv
+            INNER JOIN glpi_tickets t ON tv.tickets_id = t.id AND t.status != 6
+            LEFT JOIN glpi_plugin_ticketanswers_views v ON (v.users_id = $users_id AND v.ticket_id = t.id AND v.followup_id = CAST(tv.id AS CHAR))
+            WHERE t.id = $ticket_id AND tv.status = 2 AND v.id IS NULL AND tv.users_id_validate = $users_id
+        )";
+
+        // Respostas de Validação
+        $union_parts[] = "(
+            SELECT t.id AS ticket_id, CONCAT('validation_response_', tv.id) AS followup_id
+            FROM glpi_tickets t
+            INNER JOIN glpi_ticketvalidations tv ON t.id = tv.tickets_id AND tv.users_id = $users_id
+            LEFT JOIN glpi_plugin_ticketanswers_views v ON (v.users_id = $users_id AND v.ticket_id = t.id AND v.followup_id = CONCAT('validation_response_', tv.id))
+            WHERE t.id = $ticket_id AND t.status != 6 AND (tv.status = 3 OR tv.status = 4) AND v.id IS NULL
+        )";
+
+        // Mudanças de Status
+        $union_parts[] = "(
+            SELECT t.id AS ticket_id, CONCAT('status_', t.id, '_', t.status) AS followup_id
+            FROM glpi_tickets t
+            LEFT JOIN glpi_plugin_ticketanswers_views v ON (v.users_id = $users_id AND v.ticket_id = t.id AND (v.followup_id = CONCAT('status_', t.id, '_', t.status) OR v.followup_id = CONCAT('status_', t.id, '_any')))
+            WHERE t.id = $ticket_id AND v.id IS NULL AND t.status IN (2, 3, 4, 5)
+        )";
+
+        // Pendência com Motivo
+        $has_pending_tables = $DB->tableExists('glpi_pendingreasons') && $DB->tableExists('glpi_pendingreasons_items');
+        if ($has_pending_tables) {
+            $union_parts[] = "(
+                SELECT t.id AS ticket_id, CONCAT('pending_', t.id, '_', pri.pendingreasons_id) AS followup_id
+                FROM glpi_tickets t
+                INNER JOIN glpi_pendingreasons_items pri ON t.id = pri.items_id AND pri.itemtype = 'Ticket'
+                LEFT JOIN glpi_plugin_ticketanswers_views v ON (v.users_id = $users_id AND v.ticket_id = t.id AND v.followup_id = CONCAT('pending_', t.id, '_', pri.pendingreasons_id))
+                WHERE t.id = $ticket_id AND v.id IS NULL AND t.status = 3
+            )";
+        }
+
+        if (!empty($union_parts)) {
+            $subquery = implode(" UNION ", $union_parts);
+            $bulk_insert_sql = "
+                INSERT INTO glpi_plugin_ticketanswers_views (ticket_id, users_id, followup_id, viewed_at)
+                SELECT DISTINCT ticket_id, $users_id, followup_id, '$current_datetime'
+                FROM ($subquery) AS temp
+                ON DUPLICATE KEY UPDATE viewed_at = '$current_datetime'
+            ";
+            $DB->query($bulk_insert_sql);
+        }
+    } catch (Exception $e) {
+        error_log("Erro ao marcar todas as notificações do ticket $ticket_id como lidas: " . $e->getMessage());
+    }
 }
 
 // Função auxiliar para marcar notificação como lida

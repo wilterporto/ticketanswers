@@ -37,6 +37,18 @@ echo Html::script("/plugins/ticketanswers/js/unified_notifications.js");
 
 // Adicionar as funções JavaScript necessárias diretamente no arquivo
 echo "<script>
+function showSuccessToast(message, callback) {
+    var toast = $('<div class=\"success-toast\" style=\"position: fixed; top: 20px; right: 20px; background-color: #2ec4b6; color: white; padding: 15px 25px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 99999; display: none; font-weight: 600; font-family: sans-serif; display: flex; align-items: center; gap: 10px; border-left: 5px solid #0f9f90;\"><i class=\"fas fa-check-circle\" style=\"font-size: 1.2rem;\"></i> <span>' + message + '</span></div>');
+    $('body').append(toast);
+    toast.fadeIn(300);
+    setTimeout(function() {
+        toast.fadeOut(300, function() {
+            toast.remove();
+            if (callback) callback();
+        });
+    }, 2000);
+}
+
 // Função para marcar todas as notificações como lidas
 function markAllAsRead() {
     if (confirm('" . __("Deseja realmente marcar todas as notificações como lidas?", "ticketanswers") . "')) {
@@ -47,8 +59,9 @@ function markAllAsRead() {
                 ajax: 1
             },
             success: function(response) {
-                // Recarregar a página após marcar todas como lidas
-                window.location.reload();
+                showSuccessToast('" . __("Todas as notificações foram marcadas como lidas!", "ticketanswers") . "', function() {
+                    window.location.reload();
+                });
             }
         });
     }
@@ -278,11 +291,9 @@ function assignTicketToMe(ticketId) {
                         }
                     });
                     
-                    // Mostrar mensagem de sucesso
-                    alert(response.message || '" . __("Chamado assumido com sucesso!", "ticketanswers") . "');
-                    
-                    // Redirecionar para a página do ticket
-                    window.location.href = CFG_GLPI.root_doc + '/front/ticket.form.php?id=' + ticketId;
+                    showSuccessToast(response.message || '" . __("Chamado assumido com sucesso!", "ticketanswers") . "', function() {
+                        window.location.href = CFG_GLPI.root_doc + '/front/ticket.form.php?id=' + ticketId;
+                    });
                 } else {
                     alert(response.message || '" . __("Erro ao assumir o chamado.", "ticketanswers") . "');
                 }
@@ -328,7 +339,6 @@ UNION
         'pending_reason' AS notification_type
     FROM
         glpi_tickets t
-        INNER JOIN glpi_tickets_users tu ON t.id = tu.tickets_id AND tu.type = 1 AND tu.users_id = $users_id
         INNER JOIN glpi_pendingreasons_items pri ON t.id = pri.items_id AND pri.itemtype = 'Ticket'
         INNER JOIN glpi_pendingreasons pr ON pri.pendingreasons_id = pr.id
         LEFT JOIN glpi_users u ON t.users_id_recipient = u.id
@@ -341,48 +351,16 @@ UNION
         v.id IS NULL
         AND t.status = 3  -- Pendente
         AND pri.last_bump_date > DATE_SUB(NOW(), INTERVAL 7 DAY)
+        AND (
+            EXISTS (SELECT 1 FROM glpi_tickets_users tu WHERE tu.tickets_id = t.id AND tu.users_id = $users_id)
+            OR EXISTS (SELECT 1 FROM glpi_groups_tickets gt INNER JOIN glpi_groups_users gu ON gt.groups_id = gu.groups_id WHERE gt.tickets_id = t.id AND gu.users_id = $users_id)
+        )
 )";
 }
 
 // Consulta base sem LIMIT e sem ORDER BY
 $combined_query_base = "(
-    -- Notificações de respostas de técnicos em chamados abertos pelo usuário (Técnico respondendo ao Requerente)
-    SELECT
-        t.id AS ticket_id,
-        t.name AS ticket_name,
-        t.content AS ticket_content,
-        t.status AS ticket_status,
-        tf.id AS followup_id,
-        tf.date AS notification_date,
-        tf.content AS followup_content,
-        u.name AS user_name,
-        NULL AS group_name,
-        NULL AS refuse_reason,
-        'technician_response' AS notification_type
-    FROM
-        glpi_tickets t
-        INNER JOIN glpi_tickets_users tu ON t.id = tu.tickets_id AND tu.type = 1 AND tu.users_id = $users_id
-        INNER JOIN glpi_itilfollowups tf ON t.id = tf.items_id AND tf.itemtype = 'Ticket'
-        LEFT JOIN glpi_users u ON tf.users_id = u.id
-        LEFT JOIN glpi_plugin_ticketanswers_views v ON (
-            v.users_id = $users_id AND
-            v.followup_id = CAST(tf.id AS CHAR)
-        )
-    WHERE
-        tf.users_id <> $users_id
-        AND v.id IS NULL
-        AND t.status != 6
-        AND tf.is_private = 0
-        -- Verificar se o autor do acompanhamento é um técnico do chamado
-        AND EXISTS (
-            SELECT 1 FROM glpi_tickets_users tech_user
-            WHERE tech_user.tickets_id = t.id
-            AND tech_user.users_id = tf.users_id
-        )
-)
-UNION
-(
-    -- Respostas em chamados atribuídos ao usuário (Técnico)
+    -- Acompanhamentos (Followups) - Qualquer envolvimento diretamente ou por grupo
     SELECT
         t.id AS ticket_id,
         t.name AS ticket_name,
@@ -397,7 +375,6 @@ UNION
         'followup' AS notification_type
     FROM
         glpi_tickets t
-        INNER JOIN glpi_tickets_users tu ON t.id = tu.tickets_id AND tu.type = 2 AND tu.users_id = $users_id
         INNER JOIN glpi_itilfollowups tf ON t.id = tf.items_id AND tf.itemtype = 'Ticket'
         LEFT JOIN glpi_users u ON tf.users_id = u.id
         LEFT JOIN glpi_plugin_ticketanswers_views v ON (
@@ -409,20 +386,19 @@ UNION
         AND v.id IS NULL
         AND t.status != 6
         AND tf.is_private = 0
+        AND (
+            EXISTS (SELECT 1 FROM glpi_tickets_users tu WHERE tu.tickets_id = t.id AND tu.users_id = $users_id)
+            OR EXISTS (SELECT 1 FROM glpi_groups_tickets gt INNER JOIN glpi_groups_users gu ON gt.groups_id = gu.groups_id WHERE gt.tickets_id = t.id AND gu.users_id = $users_id)
+        )
         AND tf.date > (
-            SELECT
-                COALESCE(MAX(date), '1970-01-01')
-            FROM
-                glpi_itilfollowups tf2
-            WHERE
-                tf2.items_id = t.id
-                AND tf2.itemtype = 'Ticket'
-                AND tf2.users_id = $users_id
+            SELECT COALESCE(MAX(date), '1970-01-01')
+            FROM glpi_itilfollowups tf2
+            WHERE tf2.items_id = t.id AND tf2.itemtype = 'Ticket' AND tf2.users_id = $users_id
         )
 )
 UNION
 (
-    -- Notificações de chamados onde o usuário é observador
+    -- Chamados associados sem novos acompanhamentos (como observador ou qualquer papel)
     SELECT
         t.id AS ticket_id,
         t.name AS ticket_name,
@@ -437,7 +413,6 @@ UNION
         'observer' AS notification_type
     FROM
         glpi_tickets t
-        INNER JOIN glpi_tickets_users tu ON t.id = tu.tickets_id AND tu.type = 3 AND tu.users_id = $users_id
         LEFT JOIN glpi_users u_requester ON t.users_id_recipient = u_requester.id
         LEFT JOIN glpi_plugin_ticketanswers_views v ON (
             v.users_id = $users_id AND
@@ -447,55 +422,9 @@ UNION
     WHERE
         v.id IS NULL
         AND t.status IN (1, 2, 3, 4)
-        -- Não mostrar se já é requerente ou técnico (observador puro)
-        AND NOT EXISTS (
-            SELECT 1 FROM glpi_tickets_users requester
-            WHERE requester.tickets_id = t.id AND requester.users_id = $users_id AND requester.type = 1
-        )
-        AND NOT EXISTS (
-            SELECT 1 FROM glpi_tickets_users technician
-            WHERE technician.tickets_id = t.id AND technician.users_id = $users_id AND technician.type = 2
-        )
-)
-UNION
-(
-    -- Notificações de chamados onde o grupo do usuário é observador
-    SELECT
-        t.id AS ticket_id,
-        t.name AS ticket_name,
-        t.content AS ticket_content,
-        t.status AS ticket_status,
-        t.id + 20000000 AS followup_id,
-        tf.date AS notification_date,
-        tf.content AS followup_content,
-        u.name AS user_name,
-        g.name AS group_name,
-        NULL AS refuse_reason,
-        'group_observer' AS notification_type
-    FROM
-        glpi_tickets t
-        INNER JOIN glpi_groups_tickets gt ON t.id = gt.tickets_id AND gt.type = 3
-        INNER JOIN glpi_groups_users gu ON gt.groups_id = gu.groups_id AND gu.users_id = $users_id
-        INNER JOIN glpi_itilfollowups tf ON t.id = tf.items_id AND tf.itemtype = 'Ticket'
-        LEFT JOIN glpi_users u ON tf.users_id = u.id
-        LEFT JOIN glpi_groups g ON gt.groups_id = g.id
-        LEFT JOIN glpi_plugin_ticketanswers_views v ON (
-            v.users_id = $users_id AND
-            v.ticket_id = t.id AND
-            v.followup_id = CAST(t.id + 20000000 AS CHAR)
-        )
-    WHERE
-        v.id IS NULL
-        AND t.status != 6
-        AND tf.date > (
-            SELECT
-                COALESCE(MAX(date), '1970-01-01')
-            FROM
-                glpi_itilfollowups tf2
-            WHERE
-                tf2.items_id = t.id
-                AND tf2.itemtype = 'Ticket'
-                AND tf2.users_id = $users_id
+        AND (
+            EXISTS (SELECT 1 FROM glpi_tickets_users tu WHERE tu.tickets_id = t.id AND tu.users_id = $users_id)
+            OR EXISTS (SELECT 1 FROM glpi_groups_tickets gt INNER JOIN glpi_groups_users gu ON gt.groups_id = gu.groups_id WHERE gt.tickets_id = t.id AND gu.users_id = $users_id)
         )
 )
 UNION
@@ -515,7 +444,6 @@ UNION
         'refused' AS notification_type
     FROM
         glpi_tickets t
-        INNER JOIN glpi_tickets_users tu ON t.id = tu.tickets_id AND tu.users_id = $users_id
         INNER JOIN (
             SELECT items_id, MAX(id) as latest_solution_id
             FROM glpi_itilsolutions
@@ -538,6 +466,10 @@ UNION
         its.users_id_approval <> $users_id
         AND v.id IS NULL
         AND t.status != 6
+        AND (
+            EXISTS (SELECT 1 FROM glpi_tickets_users tu WHERE tu.tickets_id = t.id AND tu.users_id = $users_id)
+            OR EXISTS (SELECT 1 FROM glpi_groups_tickets gt INNER JOIN glpi_groups_users gu ON gt.groups_id = gu.groups_id WHERE gt.tickets_id = t.id AND gu.users_id = $users_id)
+        )
 )
 UNION
 (
@@ -614,7 +546,6 @@ UNION
         END AS notification_type
     FROM
         glpi_tickets t
-        INNER JOIN glpi_tickets_users tu ON t.id = tu.tickets_id AND tu.users_id = $users_id AND tu.type = 1
         INNER JOIN glpi_ticketvalidations tv ON t.id = tv.tickets_id AND tv.users_id = $users_id
         LEFT JOIN glpi_users u_validator ON tv.users_id_validate = u_validator.id
         LEFT JOIN glpi_plugin_ticketanswers_views v ON (
@@ -627,6 +558,10 @@ UNION
         AND (tv.status = 3 OR tv.status = 4)
         AND v.id IS NULL
         AND tv.validation_date > DATE_SUB(NOW(), INTERVAL 30 DAY)
+        AND (
+            EXISTS (SELECT 1 FROM glpi_tickets_users tu WHERE tu.tickets_id = t.id AND tu.users_id = $users_id)
+            OR EXISTS (SELECT 1 FROM glpi_groups_tickets gt INNER JOIN glpi_groups_users gu ON gt.groups_id = gu.groups_id WHERE gt.tickets_id = t.id AND gu.users_id = $users_id)
+        )
 )
 UNION
 (
@@ -653,7 +588,6 @@ UNION
         'status_change' AS notification_type
     FROM
         glpi_tickets t
-        INNER JOIN glpi_tickets_users tu ON t.id = tu.tickets_id AND tu.type = 1 AND tu.users_id = $users_id
         LEFT JOIN glpi_plugin_ticketanswers_views v ON (
             v.users_id = $users_id AND
             v.ticket_id = t.id AND
@@ -666,6 +600,10 @@ UNION
         v.id IS NULL
         AND t.status IN (2, 3, 4, 5)
         AND t.date_mod > DATE_SUB(NOW(), INTERVAL 7 DAY)
+        AND (
+            EXISTS (SELECT 1 FROM glpi_tickets_users tu WHERE tu.tickets_id = t.id AND tu.users_id = $users_id)
+            OR EXISTS (SELECT 1 FROM glpi_groups_tickets gt INNER JOIN glpi_groups_users gu ON gt.groups_id = gu.groups_id WHERE gt.tickets_id = t.id AND gu.users_id = $users_id)
+        )
     )
 ";
 
