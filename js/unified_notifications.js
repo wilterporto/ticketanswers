@@ -100,11 +100,18 @@ function getNotificationButton() {
     const soundEnabled = getSoundEnabledState();
     const soundClass = soundEnabled ? 'sound-enabled' : 'sound-disabled';
     const soundTitle = soundEnabled ? 'Notificações (som ativado)' : 'Notificações (som desativado)';
+    const volumeIconClass = soundEnabled ? 'fa-volume-up' : 'fa-volume-mute';
+    const volumeTitle = soundEnabled ? 'Silenciar notificações' : 'Ativar som das notificações';
     
     return $(`
-        <button type="button" class="notification-bell btn btn-outline-secondary ${soundClass}" title="${soundTitle}">
-            <i class="fas fa-bell fa-lg"></i>
-        </button>`);
+        <div class="sound-toggle-container" style="display: inline-flex; align-items: center; gap: 5px;">
+            <button type="button" class="notification-bell btn btn-outline-secondary ${soundClass}" title="${soundTitle}">
+                <i class="fas fa-bell fa-lg"></i>
+            </button>
+            <button type="button" class="notification-volume-toggle btn btn-outline-secondary" title="${volumeTitle}">
+                <i class="fas ${volumeIconClass}"></i>
+            </button>
+        </div>`);
 }
 
 // Configurar eventos de clique
@@ -119,25 +126,53 @@ function setupBellEvents(container) {
         toggleNotificationSound();
         return false;
     });
+    
+    // Clique no botão de volume alterna o som
+    container.find('.notification-volume-toggle').on('click', function(e) {
+        e.preventDefault();
+        toggleNotificationSound();
+        return false;
+    });
 }
 
 // Alternar som
 function toggleNotificationSound() {
     let soundEnabled = !getSoundEnabledState();
     const button = $('.notification-bell');
+    const volButton = $('.notification-volume-toggle');
     
     if (soundEnabled) {
         button.addClass('sound-enabled').removeClass('sound-disabled');
         button.attr('title', 'Notificações (som ativado)');
+        volButton.find('i').addClass('fa-volume-up').removeClass('fa-volume-mute');
+        volButton.attr('title', 'Silenciar notificações');
         playTestSound();
     } else {
         button.addClass('sound-disabled').removeClass('sound-enabled');
         button.attr('title', 'Notificações (som desativado)');
+        volButton.find('i').addClass('fa-volume-mute').removeClass('fa-volume-up');
+        volButton.attr('title', 'Ativar som das notificações');
     }
     
     try {
         localStorage.setItem('ticketAnswersSoundEnabled', soundEnabled ? 'true' : 'false');
     } catch (e) {}
+    
+    // Sincronizar com o botão de silenciar na página de listagem se estiver aberta
+    const btn = $('#toggle-sound-btn');
+    const icon = $('#toggle-sound-icon');
+    const text = $('#toggle-sound-text');
+    if (btn.length > 0) {
+        if (soundEnabled) {
+            btn.removeClass('btn-danger').addClass('btn-secondary');
+            icon.removeClass('fa-volume-mute').addClass('fa-volume-up');
+            text.text('Silenciar notificações');
+        } else {
+            btn.removeClass('btn-secondary').addClass('btn-danger');
+            icon.removeClass('fa-volume-up').addClass('fa-volume-mute');
+            text.text('Ativar som');
+        }
+    }
 }
 
 // Obter estado do som

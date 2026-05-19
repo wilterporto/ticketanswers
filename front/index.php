@@ -306,6 +306,48 @@ function assignTicketToMe(ticketId) {
         });
     }
 }
+
+function toggleMuteFromListing() {
+    if (typeof toggleNotificationSound === 'function') {
+        toggleNotificationSound();
+    } else {
+        let soundEnabled = !(localStorage.getItem('ticketAnswersSoundEnabled') !== 'false');
+        soundEnabled = !soundEnabled;
+        localStorage.setItem('ticketAnswersSoundEnabled', soundEnabled ? 'true' : 'false');
+        updateListingMuteButton(soundEnabled);
+    }
+    
+    let soundEnabledNow = localStorage.getItem('ticketAnswersSoundEnabled') !== 'false';
+    let msg = soundEnabledNow ? '" . __("Som das notificações ativado com sucesso!", "ticketanswers") . "' : '" . __("Notificações silenciadas com sucesso!", "ticketanswers") . "';
+    showSuccessToast(msg);
+}
+
+function updateListingMuteButton(soundEnabled) {
+    const btn = $('#toggle-sound-btn');
+    const icon = $('#toggle-sound-icon');
+    const text = $('#toggle-sound-text');
+    if (btn.length > 0) {
+        if (soundEnabled) {
+            btn.removeClass('btn-danger').addClass('btn-secondary');
+            icon.removeClass('fa-volume-mute').addClass('fa-volume-up');
+            text.text('" . __("Silenciar notificações", "ticketanswers") . "');
+        } else {
+            btn.removeClass('btn-secondary').addClass('btn-danger');
+            icon.removeClass('fa-volume-up').addClass('fa-volume-mute');
+            text.text('" . __("Ativar som", "ticketanswers") . "');
+        }
+    }
+}
+
+$(document).ready(function() {
+    let soundEnabled = localStorage.getItem('ticketAnswersSoundEnabled');
+    if (soundEnabled === null) {
+        soundEnabled = " . ($enable_sound ? 'true' : 'false') . ";
+    } else {
+        soundEnabled = (soundEnabled === 'true');
+    }
+    updateListingMuteButton(soundEnabled);
+});
 </script>";
 
 echo "<div class='center'>";
@@ -690,11 +732,14 @@ if ($result && $numNotifications > 0) {
     // Barra de Ferramentas Premium (Marcar tudo + Paginação)
     echo "<div class='ta-toolbar d-flex justify-content-between align-items-center' style='margin-bottom: 20px; padding: 10px; background: #f8f9fa; border-radius: 8px;'>";
     
-    // Botão Marcar Tudo
-    echo "<div>";
+    // Botão Marcar Tudo e Silenciar
+    echo "<div style='display: flex; gap: 10px;'>";
     echo "<a href='javascript:void(0)' onclick='markAllAsRead()' class='btn btn-warning shadow-sm'>
             <i class='fas fa-check-double' style='margin-right: 8px;'></i> " . __("Marcar todos como lido", "ticketanswers") . "
           </a>";
+    echo "<button type='button' id='toggle-sound-btn' onclick='toggleMuteFromListing()' class='btn btn-secondary shadow-sm' style='display: inline-flex; align-items: center;'>";
+    echo "<i class='fas fa-volume-up' style='margin-right: 8px;' id='toggle-sound-icon'></i><span id='toggle-sound-text'>" . __("Silenciar notificações", "ticketanswers") . "</span>";
+    echo "</button>";
     echo "</div>";
     
     // Seletor de Itens por Página e Paginação
