@@ -219,8 +219,7 @@ FROM
             WHERE tech_user.tickets_id = t.id
             AND tech_user.users_id = tf.users_id
             AND tech_user.type = 2
-        )
-    )";
+        )";
 
 // Consulta para encontrar mudanças de status em chamados do usuário
 $status_change_query = "SELECT COUNT(DISTINCT t.id) as status_change_count
