@@ -3,7 +3,7 @@
 
 // Adicionar coluna ticket_id se não existir
 if (!$DB->fieldExists('glpi_plugin_ticketanswers_views', 'ticket_id')) {
-    $DB->query("ALTER TABLE `glpi_plugin_ticketanswers_views` 
+    $DB->doQuery("ALTER TABLE `glpi_plugin_ticketanswers_views` 
                 ADD COLUMN `ticket_id` VARCHAR(255) NOT NULL `users_id`,
                 ADD INDEX `ticket_id` (`ticket_id`)");
     
@@ -13,12 +13,12 @@ if (!$DB->fieldExists('glpi_plugin_ticketanswers_views', 'ticket_id')) {
 
 // Modificar a coluna followup_id para permitir NULL se necessário
 $query = "SHOW COLUMNS FROM `glpi_plugin_ticketanswers_views` LIKE 'followup_id'";
-$result = $DB->query($query);
+$result = $DB->doQuery($query);
 if ($result && $DB->numrows($result) > 0) {
     $column_info = $DB->fetchAssoc($result);
     // Verificar se a coluna já permite NULL
     if (strpos(strtoupper($column_info['Null']), 'NO') !== false) {
-        $DB->query("ALTER TABLE `glpi_plugin_ticketanswers_views` 
+        $DB->doQuery("ALTER TABLE `glpi_plugin_ticketanswers_views` 
                     MODIFY COLUMN `followup_id` VARCHAR(255) NOT NULL");
         
         // Log da alteração
@@ -28,7 +28,7 @@ if ($result && $DB->numrows($result) > 0) {
 
 // Adicionar coluna message_id se não existir
 if (!$DB->fieldExists('glpi_plugin_ticketanswers_views', 'message_id')) {
-    $DB->query("ALTER TABLE `glpi_plugin_ticketanswers_views` 
+    $DB->doQuery("ALTER TABLE `glpi_plugin_ticketanswers_views` 
                 ADD COLUMN `message_id` VARCHAR(255) DEFAULT NULL `followup_id`");
     
     // Log da alteração
@@ -36,7 +36,7 @@ if (!$DB->fieldExists('glpi_plugin_ticketanswers_views', 'message_id')) {
 }
 
 // Garantir que os tipos de dados estejam corretos
-$DB->query("ALTER TABLE `glpi_plugin_ticketanswers_views` 
+$DB->doQuery("ALTER TABLE `glpi_plugin_ticketanswers_views` 
             MODIFY `ticket_id` VARCHAR(255) NOT NULL,
             MODIFY `followup_id` VARCHAR(255) NOT NULL");
 
@@ -58,7 +58,7 @@ if (!$DB->tableExists('glpi_plugin_ticketanswers_notification_prefs')) {
         UNIQUE KEY `users_id` (`users_id`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
     
-    $DB->query($query);
+    $DB->doQuery($query);
     
     if ($DB->error()) {
         error_log("Erro ao criar tabela glpi_plugin_ticketanswers_notification_prefs durante atualização: " . $DB->error());

@@ -1,8 +1,11 @@
 <?php
-include ("../../../inc/includes.php");
+if (!defined('GLPI_ROOT')) {
+    include (__DIR__ . "/../../../inc/includes.php");
+}
 
 Session::checkLoginUser();
 
+global $DB;
 Html::header("Ticket Answers", $_SERVER['PHP_SELF'], "plugins", "ticketanswers");
 
 // Carregar CSS primeiro
@@ -660,7 +663,7 @@ SELECT COUNT(*) as total FROM (
 ) as unique_notifications";
 
 // Executar a consulta de contagem
-$count_result = $DB->query($count_query);
+$count_result = $DB->doQuery($count_query);
 $total_notifications = 0;
 if ($count_result && $DB->numrows($count_result) > 0) {
     $total_data = $DB->fetchAssoc($count_result);
@@ -680,19 +683,24 @@ SELECT outer_query.*, latest_filter.total_count
 FROM ($combined_query_base) AS outer_query
 INNER JOIN (
     -- Subconsulta para pegar apenas a notificação mais recente por ticket e a contagem total
-    SELECT ticket_id, MAX(notification_date) as latest_date, COUNT(*) as total_count
+    SELECT ticket_id, MAX(notification_date) as latest_date, COUNT(*) as total_count, MAX(followup_id) as max_f_id
     FROM ($combined_query_base) as inner_base
     GROUP BY ticket_id
 ) as latest_filter ON 
     outer_query.ticket_id = latest_filter.ticket_id AND 
-    outer_query.notification_date = latest_filter.latest_date
-GROUP BY outer_query.ticket_id
+    outer_query.notification_date = latest_filter.latest_date AND
+    outer_query.followup_id = latest_filter.max_f_id
 ORDER BY outer_query.notification_date DESC
 LIMIT $notifications_per_page OFFSET $offset_value";
 
 // Executar a consulta principal
-$result = $DB->query($combined_query);
-$numNotifications = $DB->numrows($result);
+$result = $DB->doQuery($combined_query);
+$numNotifications = 0;
+if ($result) {
+    $numNotifications = $DB->numrows($result);
+} else {
+    error_log("Erro na consulta de notificações: " . $DB->error());
+}
 
 // Log para depuração
 error_log("DEBUG: notifications_per_page=$notifications_per_page, total_notifications=$total_notifications, numNotifications=$numNotifications");

@@ -19,7 +19,7 @@
   --------------------------------------------------------------------------
 */
 
-define('PLUGIN_TICKETANSWERS_VERSION', '1.1.4');
+define('PLUGIN_TICKETANSWERS_VERSION', '1.5.0');
 
 
 

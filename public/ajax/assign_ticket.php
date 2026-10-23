@@ -1,5 +1,7 @@
 <?php
-include ("../../../inc/includes.php");
+if (!defined('GLPI_ROOT')) {
+    include (__DIR__ . "/../../../../inc/includes.php");
+}
 
 Session::checkLoginUser();
 
@@ -28,7 +30,7 @@ if ($ticket_id > 0) {
                   AND gu.users_id = $users_id";
         
         error_log("Executando query: $query");
-        $result = $DB->query($query);
+        $result = $DB->doQuery($query);
         $data = $DB->fetchAssoc($result);
         error_log("Resultado da query: " . print_r($data, true));
         

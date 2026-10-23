@@ -1,5 +1,7 @@
 <?php
-include ("../../../inc/includes.php");
+if (!defined('GLPI_ROOT')) {
+    include (__DIR__ . "/../../../../inc/includes.php");
+}
 
 Session::checkLoginUser();
 
@@ -123,7 +125,7 @@ try {
 
         // Obter contagem exata de notificações antes da inserção
         $count_sql = "SELECT COUNT(*) AS total FROM (SELECT DISTINCT ticket_id, followup_id FROM ($subquery) AS temp) AS total_temp";
-        $count_result = $DB->query($count_sql);
+        $count_result = $DB->doQuery($count_sql);
         if ($count_result && $DB->numrows($count_result) > 0) {
             $count_data = $DB->fetchAssoc($count_result);
             $count = (int)$count_data['total'];
@@ -138,7 +140,7 @@ try {
                 ON DUPLICATE KEY UPDATE viewed_at = NOW(), message_id = '$batch_message_id'
             ";
 
-            $result = $DB->query($bulk_insert_query);
+            $result = $DB->doQuery($bulk_insert_query);
             if ($result) {
                 $success = true;
                 error_log("Lote concluído via Bulk Insert: $count notificações marcadas como lidas.");

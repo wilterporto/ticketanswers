@@ -1,5 +1,7 @@
 <?php
-include ("../../../inc/includes.php");
+if (!defined('GLPI_ROOT')) {
+    include (__DIR__ . "/../../../../inc/includes.php");
+}
 
 Session::checkLoginUser();
 
@@ -55,7 +57,7 @@ if ($ticket_id > 0) {
             error_log("Executando query para status_change: $query");
             
             // Executar a query
-            $insertResult = $DB->query($query);
+            $insertResult = $DB->doQuery($query);
             
             if ($insertResult) {
                 error_log("Registro de status_change inserido ou atualizado com sucesso");
@@ -67,7 +69,7 @@ if ($ticket_id > 0) {
                          VALUES ('$ticket_id', $users_id, '$alternative_id', '$current_datetime', $message_id_value)
                          ON DUPLICATE KEY UPDATE viewed_at = '$current_datetime'";
                          
-                $DB->query($query); // Executar mas não verificar resultado, é apenas uma tentativa adicional
+                $DB->doQuery($query); // Executar mas não verificar resultado, é apenas uma tentativa adicional
                 
                 $success = true;
             } else {
@@ -97,7 +99,7 @@ if ($ticket_id > 0) {
             error_log("Executando query: $query");
             
             // Executar a query
-            $insertResult = $DB->query($query);
+            $insertResult = $DB->doQuery($query);
             
             if ($insertResult) {
                 error_log("Registro inserido ou atualizado com sucesso");
@@ -195,7 +197,7 @@ if ($ticket_id > 0) {
                 FROM ($subquery) AS temp
                 ON DUPLICATE KEY UPDATE viewed_at = '$current_datetime'
             ";
-            $DB->query($bulk_insert_sql);
+            $DB->doQuery($bulk_insert_sql);
         }
     } catch (Exception $e) {
         error_log("Erro ao marcar todas as notificações do ticket $ticket_id como lidas: " . $e->getMessage());
@@ -223,7 +225,7 @@ function markNotificationAsRead($DB, $ticket_id, $users_id, $followup_id, $curre
     error_log("Executando query: $query");
     
     // Executar a query
-    $insertResult = $DB->query($query);
+    $insertResult = $DB->doQuery($query);
     
     if ($insertResult) {
         error_log("Registro inserido ou atualizado com sucesso para followup_id=$followup_id");

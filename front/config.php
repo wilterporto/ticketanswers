@@ -1,5 +1,7 @@
 <?php
-include ("../../../inc/includes.php");
+if (!defined('GLPI_ROOT')) {
+    include (__DIR__ . "/../../../inc/includes.php");
+}
 
 // Proteção: apenas administradores com direito "config" podem acessar
 Session::checkRight("config", READ);

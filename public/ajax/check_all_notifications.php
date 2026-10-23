@@ -1,8 +1,15 @@
 <?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
 
-include ("../../../inc/includes.php");
+if (!defined('GLPI_ROOT')) {
+    include (__DIR__ . "/../../../../inc/includes.php");
+}
 
 Session::checkLoginUser();
+
+global $DB;
 
 // Obtém o ID do usuário logado
 $users_id = Session::getLoginUserID();
@@ -28,7 +35,7 @@ error_log("DEBUG: Perfil=$interface, own=$can_see_own, observe=$can_see_observe,
 
 // Obter preferências de notificação do usuário
 $query = "SELECT * FROM glpi_plugin_ticketanswers_notification_prefs WHERE users_id = $users_id";
-$result = $DB->query($query);
+$result = $DB->doQuery($query);
 
 // Valores padrão (todos habilitados)
 $user_prefs = [
@@ -219,8 +226,7 @@ FROM
             WHERE tech_user.tickets_id = t.id
             AND tech_user.users_id = tf.users_id
             AND tech_user.type = 2
-        )
-    )";
+        )";
 
 // Consulta para encontrar mudanças de status em chamados do usuário
 $status_change_query = "SELECT COUNT(DISTINCT t.id) as status_change_count
@@ -262,9 +268,9 @@ if ($has_pending_tables) {
 
 
 // Executar as novas consultas
-$technician_response_result = $DB->query($technician_response_query);
-$status_change_result = $DB->query($status_change_query);
-$pending_reason_result = $DB->query($pending_reason_query);
+$technician_response_result = $DB->doQuery($technician_response_query);
+$status_change_result = $DB->doQuery($status_change_query);
+$pending_reason_result = $DB->doQuery($pending_reason_query);
 
 // Inicializar os novos contadores
 $technician_response_count = 0;
@@ -290,9 +296,9 @@ if ($pending_reason_result && $DB->numrows($pending_reason_result) > 0) {
 
 
 // Executar as consultas de validação
-$validation_result = $DB->query($validation_query);
-$validation_response_result = $DB->query($validation_response_query);
-$validation_request_response_result = $DB->query($validation_request_response_query);
+$validation_result = $DB->doQuery($validation_query);
+$validation_response_result = $DB->doQuery($validation_response_query);
+$validation_request_response_result = $DB->doQuery($validation_request_response_query);
 
 // Obter os resultados
 $validation_count = 0;
@@ -324,10 +330,10 @@ if ($since > 0) {
 }
 
 // Executar as consultas
-$followup_result = $DB->query($followup_query);
-$refused_result = $DB->query($refused_query);
-$observer_result = $DB->query($observer_query);
-$group_observer_result = $DB->query($group_observer_query);
+$followup_result = $DB->doQuery($followup_query);
+$refused_result = $DB->doQuery($refused_query);
+$observer_result = $DB->doQuery($observer_query);
+$group_observer_result = $DB->doQuery($group_observer_query);
 
 // Inicializar contadores
 $followup_count = 0;
@@ -378,7 +384,7 @@ $force_validation_sql = "SELECT COUNT(DISTINCT tv.id) as direct_count
                             AND t.status != 6
                             AND v.id IS NULL";
 
-$force_result = $DB->query($force_validation_sql);
+$force_result = $DB->doQuery($force_validation_sql);
 if ($force_result && $DB->numrows($force_result) > 0) {
     $force_data = $DB->fetchAssoc($force_result);
     $direct_count = intval($force_data['direct_count']);
@@ -413,7 +419,7 @@ if ($can_see_observe) {
                                   WHERE technician.tickets_id = t.id AND technician.users_id = $users_id AND technician.type = 2
                               )";  // Incluindo status 3 e 4 também
 
-    $force_observer_result = $DB->query($force_observer_sql);
+    $force_observer_result = $DB->doQuery($force_observer_sql);
     if ($force_observer_result && $DB->numrows($force_observer_result) > 0) {
         $force_observer_data = $DB->fetchAssoc($force_observer_result);
         $direct_observer_count = intval($force_observer_data['direct_count']);
@@ -447,7 +453,7 @@ $force_status_change_sql = "SELECT COUNT(DISTINCT t.id) as direct_count
                                AND t.status IN (2, 3, 4, 5)  -- Em atendimento, Planejado, Pendente, Solucionado
                                AND t.date_mod > DATE_SUB(NOW(), INTERVAL 7 DAY)";
 
-$force_status_result = $DB->query($force_status_change_sql);
+$force_status_result = $DB->doQuery($force_status_change_sql);
 if ($force_status_result && $DB->numrows($force_status_result) > 0) {
     $force_status_data = $DB->fetchAssoc($force_status_result);
     $direct_status_count = intval($force_status_data['direct_count']);
@@ -561,7 +567,7 @@ if (empty($union_parts)) {
     ) AS unique_notifications";
 }
 
-$unified_count_result = $DB->query($unified_count_query);
+$unified_count_result = $DB->doQuery($unified_count_query);
 $total_count_unified = 0;
 
 if ($unified_count_result && $DB->numrows($unified_count_result) > 0) {
@@ -610,6 +616,8 @@ $response = [
 
 // Se solicitado, incluir detalhes das notificações
 if (isset($_GET['get_details']) && $_GET['get_details']) {
+    $followup_notifications = [];
+
     // Consulta para obter detalhes das notificações de validação
 $validation_details_query = "SELECT DISTINCT
 t.id AS ticket_id,
@@ -635,19 +643,21 @@ AND v.id IS NULL
 ORDER BY tv.submission_date DESC
 LIMIT 10";
 
-$validation_details_result = $DB->query($validation_details_query);
+$validation_details_result = $DB->doQuery($validation_details_query);
 $validation_notifications = [];
 
-while ($data = $DB->fetchAssoc($validation_details_result)) {
-$validation_notifications[] = [
-    'ticket_id' => $data['ticket_id'],
-    'ticket_name' => $data['ticket_name'],
-    'followup_id' => $data['followup_id'],
-    'notification_date' => Html::convDateTime($data['notification_date']),
-    'requester_name' => $data['requester_name'],
-    'comment_content' => $data['comment_content'],
-    'type' => 'validation'
-];
+if ($validation_details_result) {
+    while ($data = $DB->fetchAssoc($validation_details_result)) {
+    $validation_notifications[] = [
+        'ticket_id' => $data['ticket_id'],
+        'ticket_name' => $data['ticket_name'],
+        'followup_id' => $data['followup_id'],
+        'notification_date' => Html::convDateTime($data['notification_date']),
+        'requester_name' => $data['requester_name'],
+        'comment_content' => $data['comment_content'],
+        'type' => 'validation'
+    ];
+    }
 }
 
 // Consulta para obter detalhes das respostas de validação
@@ -685,19 +695,21 @@ AND tv.validation_date > DATE_SUB(NOW(), INTERVAL 30 DAY)
 ORDER BY tv.validation_date DESC
 LIMIT 10";
 
-$validation_response_details_result = $DB->query($validation_response_details_query);
+$validation_response_details_result = $DB->doQuery($validation_response_details_query);
 $validation_response_notifications = [];
 
-while ($data = $DB->fetchAssoc($validation_response_details_result)) {
-$validation_response_notifications[] = [
-    'ticket_id' => $data['ticket_id'],
-    'ticket_name' => $data['ticket_name'],
-    'followup_id' => $data['followup_id'],
-    'notification_date' => Html::convDateTime($data['notification_date']),
-    'validator_name' => $data['validator_name'],
-    'response_content' => $data['response_content'],
-    'type' => 'validation_response'
-];
+if ($validation_response_details_result) {
+    while ($data = $DB->fetchAssoc($validation_response_details_result)) {
+    $validation_response_notifications[] = [
+        'ticket_id' => $data['ticket_id'],
+        'ticket_name' => $data['ticket_name'],
+        'followup_id' => $data['followup_id'],
+        'notification_date' => Html::convDateTime($data['notification_date']),
+        'validator_name' => $data['validator_name'],
+        'response_content' => $data['response_content'],
+        'type' => 'validation_response'
+    ];
+    }
 }
 
 
@@ -736,19 +748,21 @@ AND tv.validation_date > DATE_SUB(NOW(), INTERVAL 30 DAY)
 ORDER BY tv.validation_date DESC
 LIMIT 10";
 
-$validation_response_details_result = $DB->query($validation_response_details_query);
+$validation_response_details_result = $DB->doQuery($validation_response_details_query);
 $validation_response_notifications = [];
 
-while ($data = $DB->fetchAssoc($validation_response_details_result)) {
-$validation_response_notifications[] = [
-    'ticket_id' => $data['ticket_id'],
-    'ticket_name' => $data['ticket_name'],
-    'followup_id' => $data['followup_id'],
-    'notification_date' => Html::convDateTime($data['notification_date']),
-    'validator_name' => $data['validator_name'],
-    'response_content' => $data['response_content'],
-    'type' => 'validation_response'
-];
+if ($validation_response_details_result) {
+    while ($data = $DB->fetchAssoc($validation_response_details_result)) {
+    $validation_response_notifications[] = [
+        'ticket_id' => $data['ticket_id'],
+        'ticket_name' => $data['ticket_name'],
+        'followup_id' => $data['followup_id'],
+        'notification_date' => Html::convDateTime($data['notification_date']),
+        'validator_name' => $data['validator_name'],
+        'response_content' => $data['response_content'],
+        'type' => 'validation_response'
+    ];
+    }
 }
 
 
@@ -778,25 +792,27 @@ $validation_response_notifications[] = [
     ORDER BY t.date_creation DESC
     LIMIT 10";
     
-    $observer_details_result = $DB->query($observer_details_query);
+    $observer_details_result = $DB->doQuery($observer_details_query);
     $observer_notifications = [];
     
-    while ($data = $DB->fetchAssoc($observer_details_result)) {
-        // Decodificar entidades HTML para o conteúdo do ticket
-        $ticket_content = $data['ticket_content'];
-        $decoded_content = html_entity_decode($ticket_content);
-        // Extrair texto entre tags usando regex
-        $plain_text = preg_replace('/<.*?>/', '', $decoded_content);
-        $short_text = Html::resume_text($plain_text, 100);
-        
-        $observer_notifications[] = [
-            'ticket_id' => $data['ticket_id'],
-            'ticket_name' => $data['ticket_name'],
-            'creation_date' => Html::convDateTime($data['creation_date']),
-            'requester_name' => $data['requester_name'],
-            'ticket_content' => $short_text,
-            'type' => 'observer'
-        ];
+    if ($observer_details_result) {
+        while ($data = $DB->fetchAssoc($observer_details_result)) {
+            // Decodificar entidades HTML para o conteúdo do ticket
+            $ticket_content = $data['ticket_content'];
+            $decoded_content = html_entity_decode($ticket_content);
+            // Extrair texto entre tags usando regex
+            $plain_text = preg_replace('/<.*?>/', '', $decoded_content);
+            $short_text = Html::resume_text($plain_text, 100);
+            
+            $observer_notifications[] = [
+                'ticket_id' => $data['ticket_id'],
+                'ticket_name' => $data['ticket_name'],
+                'creation_date' => Html::convDateTime($data['creation_date']),
+                'requester_name' => $data['requester_name'],
+                'ticket_content' => $short_text,
+                'type' => 'observer'
+            ];
+        }
     }
     
     // Consulta para obter detalhes das notificações de recusa
@@ -829,26 +845,28 @@ $validation_response_notifications[] = [
     ORDER BY its.date_approval DESC
     LIMIT 10";
     
-    $refused_details_result = $DB->query($refused_details_query);
+    $refused_details_result = $DB->doQuery($refused_details_query);
     $refused_notifications = [];
     
-    while ($data = $DB->fetchAssoc($refused_details_result)) {
-        // Decodificar entidades HTML
-        $followup_content = $data['followup_content'];
-        $decoded_content = html_entity_decode($followup_content);
-        // Extrair texto entre tags usando regex
-        $plain_text = preg_replace('/<.*?>/', '', $decoded_content);
-        $short_text = Html::resume_text($plain_text, 100);
-        
-        $refused_notifications[] = [
-            'ticket_id' => $data['ticket_id'],
-            'ticket_name' => $data['ticket_name'],
-            'followup_id' => $data['followup_id'],
-            'followup_date' => Html::convDateTime($data['followup_date']),
-            'user_name' => $data['user_name'],
-            'followup_content' => $short_text,
-            'type' => 'refused'
-        ];
+    if ($refused_details_result) {
+        while ($data = $DB->fetchAssoc($refused_details_result)) {
+            // Decodificar entidades HTML
+            $followup_content = $data['followup_content'];
+            $decoded_content = html_entity_decode($followup_content);
+            // Extrair texto entre tags usando regex
+            $plain_text = preg_replace('/<.*?>/', '', $decoded_content);
+            $short_text = Html::resume_text($plain_text, 100);
+            
+            $refused_notifications[] = [
+                'ticket_id' => $data['ticket_id'],
+                'ticket_name' => $data['ticket_name'],
+                'followup_id' => $data['followup_id'],
+                'followup_date' => Html::convDateTime($data['followup_date']),
+                'user_name' => $data['user_name'],
+                'followup_content' => $short_text,
+                'type' => 'refused'
+            ];
+        }
     }
     
 
@@ -921,7 +939,7 @@ $diagnostic_sql = "SELECT tv.id, t.name, tv.status, tv.submission_date, tv.users
                    ORDER BY tv.submission_date DESC
                    LIMIT 5";
 
-$result = $DB->query($diagnostic_sql);
+$result = $DB->doQuery($diagnostic_sql);
 error_log("=== DIAGNÓSTICO DE VALIDAÇÕES ===");
 if ($result && $DB->numrows($result) > 0) {
     while ($row = $DB->fetchAssoc($result)) {
@@ -930,7 +948,7 @@ if ($result && $DB->numrows($result) > 0) {
         // Verificar se há um registro de visualização para esta validação
         $view_sql = "SELECT id FROM glpi_plugin_ticketanswers_views 
                      WHERE users_id = $users_id AND followup_id = '{$row['id']}'";
-        $view_result = $DB->query($view_sql);
+        $view_result = $DB->doQuery($view_sql);
         $viewed = ($view_result && $DB->numrows($view_result) > 0) ? "SIM" : "NÃO";
         error_log("Validação ID {$row['id']} já foi visualizada? $viewed");
     }
