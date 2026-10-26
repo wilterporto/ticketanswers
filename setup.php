@@ -19,7 +19,7 @@
   --------------------------------------------------------------------------
 */
 
-define('PLUGIN_TICKETANSWERS_VERSION', '1.1.4');
+define('PLUGIN_TICKETANSWERS_VERSION', '1.5.0');
 
 
 
@@ -59,7 +59,7 @@ function plugin_version_ticketanswers() {
     return [
        'name'           => 'Ticket Answers',
        'version'        => PLUGIN_TICKETANSWERS_VERSION,
-       'author'         => 'Jeferson Penna Alves',
+       'author'         => 'Wilter Porto',
        'license'        => 'GPLv2+',
        'homepage'       => 'https://github.com/jefersonalves/ticketanswers',
        'minGlpiVersion' => '9.5'

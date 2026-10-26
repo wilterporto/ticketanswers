@@ -1,5 +1,7 @@
 <?php
-include ("../../../inc/includes.php");
+if (!defined('GLPI_ROOT')) {
+    include (__DIR__ . "/../../../inc/includes.php");
+}
 
 Session::checkLoginUser();
 
@@ -13,7 +15,7 @@ $users_id = Session::getLoginUserID();
 
 // Total de notificações recebidas
 $query = "SELECT COUNT(*) as total FROM glpi_plugin_ticketanswers_views WHERE users_id = $users_id";
-$result = $DB->query($query);
+$result = $DB->doQuery($query);
 $total_views = 0;
 if ($result && $DB->numrows($result) > 0) {
     $data = $DB->fetchAssoc($result);
@@ -34,7 +36,7 @@ ORDER BY
     view_date DESC
 LIMIT 10";
 
-$result = $DB->query($query);
+$result = $DB->doQuery($query);
 $daily_stats = [];
 if ($result) {
     while ($data = $DB->fetchAssoc($result)) {

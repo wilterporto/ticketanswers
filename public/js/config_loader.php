@@ -3,8 +3,10 @@
 header("Content-Type: application/javascript");
 
 // Inclui o ambiente do GLPI
-// O caminho depende de onde este arquivo está. Como está em /plugins/ticketanswers/js/
-include ("../../../inc/includes.php");
+// O caminho depende de onde este arquivo está. Como está em /plugins/ticketanswers/public/js/
+if (!defined('GLPI_ROOT')) {
+    include (__DIR__ . "/../../../../inc/includes.php");
+}
 
 // Verifica se o usuário está logado
 if (!Session::getLoginUserID()) {

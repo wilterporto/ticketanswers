@@ -1,5 +1,7 @@
 <?php
-include ("../../../inc/includes.php");
+if (!defined('GLPI_ROOT')) {
+    include (__DIR__ . "/../../../../inc/includes.php");
+}
 
 Session::checkLoginUser();
 
@@ -55,7 +57,7 @@ if ($ticket_id > 0) {
             error_log("Executando query para status_change: $query");
             
             // Executar a query
-            $insertResult = $DB->query($query);
+            $insertResult = $DB->doQuery($query);
             
             if ($insertResult) {
                 error_log("Registro de status_change inserido ou atualizado com sucesso");
@@ -67,7 +69,7 @@ if ($ticket_id > 0) {
                          VALUES ('$ticket_id', $users_id, '$alternative_id', '$current_datetime', $message_id_value)
                          ON DUPLICATE KEY UPDATE viewed_at = '$current_datetime'";
                          
-                $DB->query($query); // Executar mas não verificar resultado, é apenas uma tentativa adicional
+                $DB->doQuery($query); // Executar mas não verificar resultado, é apenas uma tentativa adicional
                 
                 $success = true;
             } else {
@@ -88,16 +90,17 @@ if ($ticket_id > 0) {
             // Preparar o valor do message_id para a query
             $message_id_value = $message_id ? "'" . $DB->escape($message_id) . "'" : "NULL";
             
-            // Construir a query - sem alteração para tipos não-status
+            // Construir a query citando devidamente os valores para evitar erros de sintaxe SQL
+            $escaped_followup_id = $DB->escape($actual_followup_id);
             $query = "INSERT INTO glpi_plugin_ticketanswers_views
                      (ticket_id, users_id, followup_id, viewed_at, message_id)
-                     VALUES ($ticket_id, $users_id, $actual_followup_id, '$current_datetime', $message_id_value)
+                     VALUES ('$ticket_id', $users_id, '$escaped_followup_id', '$current_datetime', $message_id_value)
                      ON DUPLICATE KEY UPDATE viewed_at = '$current_datetime'";
             
             error_log("Executando query: $query");
             
             // Executar a query
-            $insertResult = $DB->query($query);
+            $insertResult = $DB->doQuery($query);
             
             if ($insertResult) {
                 error_log("Registro inserido ou atualizado com sucesso");
@@ -115,6 +118,12 @@ if ($ticket_id > 0) {
 
     // Marcar também TODAS as outras notificações deste mesmo ticket como lidas para este usuário
     try {
+        $actor_condition = "(
+            t.users_id_recipient = $users_id
+            OR EXISTS (SELECT 1 FROM glpi_tickets_users tu WHERE tu.tickets_id = t.id AND tu.users_id = $users_id AND tu.type IN (1, 2, 3))
+            OR EXISTS (SELECT 1 FROM glpi_groups_tickets gt INNER JOIN glpi_groups_users gu ON gt.groups_id = gu.groups_id WHERE gt.tickets_id = t.id AND gu.users_id = $users_id AND gt.type IN (1, 2, 3))
+        )";
+
         $union_parts = [];
 
         // Acompanhamentos (Followups)
@@ -123,12 +132,30 @@ if ($ticket_id > 0) {
             FROM glpi_tickets t
             INNER JOIN glpi_itilfollowups tf ON t.id = tf.items_id AND tf.itemtype = 'Ticket'
             LEFT JOIN glpi_plugin_ticketanswers_views v ON (v.users_id = $users_id AND v.followup_id = CAST(tf.id AS CHAR))
-            WHERE t.id = $ticket_id AND tf.users_id <> $users_id AND v.id IS NULL AND t.status != 6 AND tf.is_private = 0
+            WHERE t.id = $ticket_id AND tf.users_id <> $users_id AND v.id IS NULL AND t.status != 6
             AND tf.date > (
                 SELECT COALESCE(MAX(date), '1970-01-01')
                 FROM glpi_itilfollowups tf2
                 WHERE tf2.items_id = t.id AND tf2.itemtype = 'Ticket' AND tf2.users_id = $users_id
             )
+        )";
+
+        // Tarefas (Tasks)
+        $union_parts[] = "(
+            SELECT t.id AS ticket_id, CONCAT('task_', tt.id) AS followup_id
+            FROM glpi_tickets t
+            INNER JOIN glpi_tickettasks tt ON t.id = tt.tickets_id
+            LEFT JOIN glpi_plugin_ticketanswers_views v ON (v.users_id = $users_id AND v.followup_id = CONCAT('task_', tt.id))
+            WHERE t.id = $ticket_id AND tt.users_id <> $users_id AND v.id IS NULL AND t.status != 6
+        )";
+
+        // Soluções Propostas
+        $union_parts[] = "(
+            SELECT t.id AS ticket_id, CONCAT('solution_', its.id) AS followup_id
+            FROM glpi_tickets t
+            INNER JOIN glpi_itilsolutions its ON t.id = its.items_id AND its.itemtype = 'Ticket'
+            LEFT JOIN glpi_plugin_ticketanswers_views v ON (v.users_id = $users_id AND v.followup_id = CONCAT('solution_', its.id))
+            WHERE t.id = $ticket_id AND its.users_id <> $users_id AND its.status IN (1, 2) AND v.id IS NULL AND t.status != 6
         )";
 
         // Observador Individual (notificações do chamado em si)
@@ -155,14 +182,14 @@ if ($ticket_id > 0) {
             FROM glpi_ticketvalidations tv
             INNER JOIN glpi_tickets t ON tv.tickets_id = t.id AND t.status != 6
             LEFT JOIN glpi_plugin_ticketanswers_views v ON (v.users_id = $users_id AND v.ticket_id = t.id AND v.followup_id = CAST(tv.id AS CHAR))
-            WHERE t.id = $ticket_id AND tv.status = 2 AND v.id IS NULL AND tv.users_id_validate = $users_id
+            WHERE t.id = $ticket_id AND tv.status = 2 AND v.id IS NULL
         )";
 
         // Respostas de Validação
         $union_parts[] = "(
             SELECT t.id AS ticket_id, CONCAT('validation_response_', tv.id) AS followup_id
             FROM glpi_tickets t
-            INNER JOIN glpi_ticketvalidations tv ON t.id = tv.tickets_id AND tv.users_id = $users_id
+            INNER JOIN glpi_ticketvalidations tv ON t.id = tv.tickets_id
             LEFT JOIN glpi_plugin_ticketanswers_views v ON (v.users_id = $users_id AND v.ticket_id = t.id AND v.followup_id = CONCAT('validation_response_', tv.id))
             WHERE t.id = $ticket_id AND t.status != 6 AND (tv.status = 3 OR tv.status = 4) AND v.id IS NULL
         )";
@@ -195,7 +222,7 @@ if ($ticket_id > 0) {
                 FROM ($subquery) AS temp
                 ON DUPLICATE KEY UPDATE viewed_at = '$current_datetime'
             ";
-            $DB->query($bulk_insert_sql);
+            $DB->doQuery($bulk_insert_sql);
         }
     } catch (Exception $e) {
         error_log("Erro ao marcar todas as notificações do ticket $ticket_id como lidas: " . $e->getMessage());
@@ -223,7 +250,7 @@ function markNotificationAsRead($DB, $ticket_id, $users_id, $followup_id, $curre
     error_log("Executando query: $query");
     
     // Executar a query
-    $insertResult = $DB->query($query);
+    $insertResult = $DB->doQuery($query);
     
     if ($insertResult) {
         error_log("Registro inserido ou atualizado com sucesso para followup_id=$followup_id");

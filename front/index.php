@@ -1,8 +1,11 @@
 <?php
-include ("../../../inc/includes.php");
+if (!defined('GLPI_ROOT')) {
+    include (__DIR__ . "/../../../inc/includes.php");
+}
 
 Session::checkLoginUser();
 
+global $DB;
 Html::header("Ticket Answers", $_SERVER['PHP_SELF'], "plugins", "ticketanswers");
 
 // Carregar CSS primeiro
@@ -90,48 +93,20 @@ function markNotificationAsRead(ticketId, followupId, type, newTab) {
         success: function(response) {
             console.log('Resposta do servidor:', response);
             
-            // Determinar o ID da linha com base no tipo
-            let rowId;
-            
-            // Para notificações de status, o ID pode estar em um formato específico
-            if (type === 'status_change') {
-                // Tente encontrar a linha usando diferentes estratégias
-                let statusRow = $('tr[data-notification-type=\"status_change\"][data-ticket-id=\"' + ticketId + '\"]');
-                
-                if (statusRow.length > 0) {
-                    // Se encontrou pelo atributo data, use essa linha diretamente
-                    statusRow.fadeOut(500, function() {
-                        $(this).remove();
-                        checkForEmptyTable();
-                    });
-                    
-                    handleNavigation();
-                    return; // Saia da função após lidar com a remoção
-                }
-                
-                // Se não encontrou, tente com o ID específico
-                rowId = 'notification-row-' + ticketId + '-' + followupId;
-            } else if (type === 'followup' ||
-                type === 'refused' ||
-                type === 'validation' ||
-                type === 'validation_request' ||
-                type === 'validation_approved' ||
-                type === 'validation_refused' ||
-                type === 'validation_response' ||
-                type === 'validation_request_response' ||
-                type === 'pending_reason' ||
-                type === 'technician_response') {
-                rowId = 'notification-row-' + ticketId + '-' + followupId;
-            } else {
-                rowId = 'group-notification-row-' + ticketId;
+            // Localizar a linha pelo data-ticket-id ou pelo ID gerado
+            let targetRow = $('tr[data-ticket-id=\"' + ticketId + '\"]');
+            if (targetRow.length === 0) {
+                targetRow = $('#notification-row-' + ticketId + '-' + followupId);
+            }
+            if (targetRow.length === 0) {
+                targetRow = $('#group-notification-row-' + ticketId);
             }
             
-            console.log('ID da linha a ser removida:', rowId);
-            
             // Animar a remoção da linha da tabela
-            $('#' + rowId).fadeOut(500, function() {
+            targetRow.fadeOut(500, function() {
                 $(this).remove();
                 checkForEmptyTable();
+                updateCounter();
             });
             
             handleNavigation();
@@ -360,19 +335,281 @@ echo "<h1>" . __("Ticket Answers", "ticketanswers") . "</h1>";
 // Verificar se as tabelas de pendência existem (GLPI 10+ ou Plugin)
 $has_pending_tables = $DB->tableExists('glpi_pendingreasons') && $DB->tableExists('glpi_pendingreasons_items');
 
-// Adicionar parte de pendências apenas se as tabelas existirem
-$pending_reason_union = "";
+// Condição unificada para verificar o envolvimento do usuário no chamado (Requerente, Atribuído ou Observador - direto ou via grupo)
+$actor_condition = "(
+    t.users_id_recipient = $users_id
+    OR EXISTS (SELECT 1 FROM glpi_tickets_users tu WHERE tu.tickets_id = t.id AND tu.users_id = $users_id AND tu.type IN (1, 2, 3))
+    OR EXISTS (SELECT 1 FROM glpi_groups_tickets gt INNER JOIN glpi_groups_users gu ON gt.groups_id = gu.groups_id WHERE gt.tickets_id = t.id AND gu.users_id = $users_id AND gt.type IN (1, 2, 3))
+)";
+
+$union_parts = [];
+
+// 1. Acompanhamentos (Followups)
+$union_parts[] = "SELECT
+    t.id AS ticket_id,
+    t.name AS ticket_name,
+    t.content AS ticket_content,
+    t.status AS ticket_status,
+    CAST(tf.id AS CHAR) AS followup_id,
+    tf.date AS notification_date,
+    tf.content AS followup_content,
+    u.name AS user_name,
+    NULL AS group_name,
+    NULL AS refuse_reason,
+    'followup' AS notification_type
+FROM
+    glpi_tickets t
+    INNER JOIN glpi_itilfollowups tf ON t.id = tf.items_id AND tf.itemtype = 'Ticket'
+    LEFT JOIN glpi_users u ON tf.users_id = u.id
+    LEFT JOIN glpi_plugin_ticketanswers_views v ON (
+        v.users_id = $users_id AND
+        v.ticket_id = t.id AND
+        v.followup_id = CAST(tf.id AS CHAR)
+    )
+WHERE
+    tf.users_id <> $users_id
+    AND v.id IS NULL
+    AND t.status != 6
+    AND tf.date > DATE_SUB(NOW(), INTERVAL 30 DAY)
+    AND (tf.is_private = 0 OR (tf.is_private = 1 AND EXISTS (SELECT 1 FROM glpi_tickets_users tu_tech WHERE tu_tech.tickets_id = t.id AND tu_tech.users_id = $users_id AND tu_tech.type = 2)))
+    AND $actor_condition
+    AND tf.date > (
+        SELECT COALESCE(MAX(date), '1970-01-01')
+        FROM glpi_itilfollowups tf2
+        WHERE tf2.items_id = t.id AND tf2.itemtype = 'Ticket' AND tf2.users_id = $users_id
+    )";
+
+// 2. Tarefas (Tasks)
+$union_parts[] = "SELECT
+    t.id AS ticket_id,
+    t.name AS ticket_name,
+    t.content AS ticket_content,
+    t.status AS ticket_status,
+    CONCAT('task_', tt.id) AS followup_id,
+    tt.date AS notification_date,
+    CONCAT('Nova tarefa: ', SUBSTRING(REGEXP_REPLACE(tt.content, '<[^>]+>', ''), 1, 100)) AS followup_content,
+    u.name AS user_name,
+    NULL AS group_name,
+    NULL AS refuse_reason,
+    'task' AS notification_type
+FROM
+    glpi_tickets t
+    INNER JOIN glpi_tickettasks tt ON t.id = tt.tickets_id
+    LEFT JOIN glpi_users u ON tt.users_id = u.id
+    LEFT JOIN glpi_plugin_ticketanswers_views v ON (
+        v.users_id = $users_id AND
+        v.ticket_id = t.id AND
+        v.followup_id = CONCAT('task_', tt.id)
+    )
+WHERE
+    tt.users_id <> $users_id
+    AND v.id IS NULL
+    AND t.status != 6
+    AND tt.date > DATE_SUB(NOW(), INTERVAL 30 DAY)
+    AND (tt.is_private = 0 OR (tt.is_private = 1 AND EXISTS (SELECT 1 FROM glpi_tickets_users tu_tech WHERE tu_tech.tickets_id = t.id AND tu_tech.users_id = $users_id AND tu_tech.type = 2)))
+    AND $actor_condition";
+
+// 3. Soluções Propostas
+$union_parts[] = "SELECT
+    t.id AS ticket_id,
+    t.name AS ticket_name,
+    t.content AS ticket_content,
+    t.status AS ticket_status,
+    CONCAT('solution_', its.id) AS followup_id,
+    its.date_creation AS notification_date,
+    CONCAT('Solução proposta: ', SUBSTRING(REGEXP_REPLACE(its.content, '<[^>]+>', ''), 1, 100)) AS followup_content,
+    u.name AS user_name,
+    NULL AS group_name,
+    NULL AS refuse_reason,
+    'solution' AS notification_type
+FROM
+    glpi_tickets t
+    INNER JOIN glpi_itilsolutions its ON t.id = its.items_id AND its.itemtype = 'Ticket'
+    LEFT JOIN glpi_users u ON its.users_id = u.id
+    LEFT JOIN glpi_plugin_ticketanswers_views v ON (
+        v.users_id = $users_id AND
+        v.ticket_id = t.id AND
+        v.followup_id = CONCAT('solution_', its.id)
+    )
+WHERE
+    its.users_id <> $users_id
+    AND its.status IN (1, 2)
+    AND v.id IS NULL
+    AND t.status != 6
+    AND $actor_condition
+    AND its.date_creation > DATE_SUB(NOW(), INTERVAL 30 DAY)";
+
+// 4. Chamados Recusados (Solução Recusada)
+$union_parts[] = "SELECT
+    t.id AS ticket_id,
+    t.name AS ticket_name,
+    t.content AS ticket_content,
+    t.status AS ticket_status,
+    CAST(its.id AS CHAR) AS followup_id,
+    its.date_approval AS notification_date,
+    its.content AS followup_content,
+    u.realname AS user_name,
+    NULL AS group_name,
+    tf.content AS refuse_reason,
+    'refused' AS notification_type
+FROM
+    glpi_tickets t
+    INNER JOIN (
+        SELECT items_id, MAX(id) as latest_solution_id
+        FROM glpi_itilsolutions
+        WHERE status = 4 AND itemtype = 'Ticket'
+        GROUP BY items_id
+    ) latest ON t.id = latest.items_id
+    INNER JOIN glpi_itilsolutions its ON its.id = latest.latest_solution_id
+    LEFT JOIN glpi_users u ON its.users_id_approval = u.id
+    LEFT JOIN glpi_itilfollowups tf ON (
+        tf.items_id = t.id 
+        AND tf.itemtype = 'Ticket'
+        AND tf.users_id = its.users_id_approval
+        AND tf.date = its.date_approval
+    )
+    LEFT JOIN glpi_plugin_ticketanswers_views v ON (
+        v.users_id = $users_id AND
+        v.ticket_id = t.id AND
+        v.followup_id = CAST(its.id AS CHAR)
+    )
+WHERE
+    its.users_id_approval <> $users_id
+    AND v.id IS NULL
+    AND t.status != 6
+    AND its.date_approval > DATE_SUB(NOW(), INTERVAL 30 DAY)
+    AND $actor_condition";
+
+// 5. Validações Solicitadas
+$union_parts[] = "SELECT DISTINCT
+    t.id AS ticket_id,
+    t.name AS ticket_name,
+    t.content AS ticket_content,
+    t.status AS ticket_status,
+    CAST(tv.id AS CHAR) AS followup_id,
+    tv.submission_date AS notification_date,
+    CONCAT('Solicitação de validação: ', IF(tv.comment_submission IS NOT NULL AND tv.comment_submission != '', 
+           tv.comment_submission, 'Sem comentários adicionais.')) AS followup_content,
+    CASE
+        WHEN tv.users_id_validate = $users_id THEN u_requester.name
+        ELSE u_validator.name
+    END AS user_name,
+    NULL AS group_name,
+    NULL AS refuse_reason,
+    CASE
+        WHEN tv.users_id_validate = $users_id THEN 'validation'
+        ELSE 'validation_request'
+    END AS notification_type
+FROM
+    glpi_ticketvalidations tv
+    INNER JOIN glpi_tickets t ON tv.tickets_id = t.id AND t.status != 6
+    LEFT JOIN glpi_users u_requester ON tv.users_id = u_requester.id
+    LEFT JOIN glpi_users u_validator ON tv.users_id_validate = u_validator.id
+    LEFT JOIN glpi_plugin_ticketanswers_views v ON (
+        v.users_id = $users_id AND
+        v.ticket_id = t.id AND
+        v.followup_id = CAST(tv.id AS CHAR)
+    )
+WHERE
+    tv.status = 2
+    AND tv.users_id <> $users_id
+    AND v.id IS NULL
+    AND (
+        tv.users_id_validate = $users_id
+        OR $actor_condition
+    )
+    AND tv.submission_date > DATE_SUB(NOW(), INTERVAL 90 DAY)";
+
+// 6. Respostas de Validação
+$union_parts[] = "SELECT DISTINCT
+    t.id AS ticket_id,
+    t.name AS ticket_name,
+    t.content AS ticket_content,
+    t.status AS ticket_status,
+    CONCAT('validation_response_', tv.id) AS followup_id,
+    tv.validation_date AS notification_date,
+    CASE
+        WHEN tv.status = 3 THEN CONCAT('Sua solicitação de validação foi APROVADA', 
+                                     IF(tv.comment_validation IS NOT NULL AND tv.comment_validation != '',
+                                        CONCAT(': ', tv.comment_validation), 
+                                        ': Sem comentários adicionais.'))
+        WHEN tv.status = 4 THEN CONCAT('Sua solicitação de validação foi RECUSADA', 
+                                     IF(tv.comment_validation IS NOT NULL AND tv.comment_validation != '',
+                                        CONCAT(': ', tv.comment_validation), 
+                                        ': Sem comentários de recusa.'))
+        ELSE 'Validação respondida.'
+    END AS followup_content,
+    u_validator.name AS user_name,
+    NULL AS group_name,
+    tv.comment_validation AS refuse_reason,
+    CASE
+        WHEN tv.status = 3 THEN 'validation_approved'
+        WHEN tv.status = 4 THEN 'validation_refused'
+        ELSE 'validation_response'
+    END AS notification_type
+FROM
+    glpi_tickets t
+    INNER JOIN glpi_ticketvalidations tv ON t.id = tv.tickets_id
+    LEFT JOIN glpi_users u_validator ON tv.users_id_validate = u_validator.id
+    LEFT JOIN glpi_plugin_ticketanswers_views v ON (
+        v.users_id = $users_id AND
+        v.ticket_id = t.id AND
+        v.followup_id = CONCAT('validation_response_', tv.id)
+    )
+WHERE
+    t.status != 6
+    AND tv.status IN (3, 4)
+    AND tv.users_id_validate <> $users_id
+    AND v.id IS NULL
+    AND tv.validation_date > DATE_SUB(NOW(), INTERVAL 30 DAY)
+    AND $actor_condition";
+
+// 7. Mudanças de Status
+$union_parts[] = "SELECT
+    t.id AS ticket_id,
+    t.name AS ticket_name,
+    t.content AS ticket_content,
+    t.status AS ticket_status,
+    CONCAT('status_', t.id, '_', t.status) AS followup_id,
+    t.date_mod AS notification_date,
+    CONCAT('Status alterado para: ',
+           CASE
+              WHEN t.status = 1 THEN 'Novo'
+              WHEN t.status = 2 THEN 'Em atendimento'
+              WHEN t.status = 3 THEN 'Planejado'
+              WHEN t.status = 4 THEN 'Pendente'
+              WHEN t.status = 5 THEN 'Solucionado'
+              WHEN t.status = 6 THEN 'Fechado'
+              ELSE 'Outro status'
+           END) AS followup_content,
+    NULL AS user_name,
+    NULL AS group_name,
+    NULL AS refuse_reason,
+    'status_change' AS notification_type
+FROM
+    glpi_tickets t
+    LEFT JOIN glpi_plugin_ticketanswers_views v ON (
+        v.users_id = $users_id AND
+        v.ticket_id = t.id AND
+        (
+            v.followup_id = CONCAT('status_', t.id, '_', t.status) OR
+            v.followup_id = CONCAT('status_', t.id, '_any')
+        )
+    )
+WHERE
+    v.id IS NULL
+    AND t.status IN (2, 3, 4, 5)
+    AND t.date_mod > DATE_SUB(NOW(), INTERVAL 7 DAY)
+    AND $actor_condition";
+
+// 8. Motivos de Pendência (se suportado)
 if ($has_pending_tables) {
-$pending_reason_union = "
-UNION
-(
-    -- Notificações de chamados pendentes com motivo
-    SELECT
+    $union_parts[] = "SELECT
         t.id AS ticket_id,
         t.name AS ticket_name,
         t.content AS ticket_content,
         t.status AS ticket_status,
-        0 AS followup_id,
+        CONCAT('pending_', t.id, '_', pri.pendingreasons_id) AS followup_id,
         pri.last_bump_date AS notification_date,
         CONCAT('Chamado pendente - Motivo: ', pr.name) AS followup_content,
         u.name AS user_name,
@@ -391,280 +628,49 @@ UNION
         )
     WHERE
         v.id IS NULL
-        AND t.status = 3  -- Pendente
+        AND t.status = 3
         AND pri.last_bump_date > DATE_SUB(NOW(), INTERVAL 7 DAY)
-        AND (
-            EXISTS (SELECT 1 FROM glpi_tickets_users tu WHERE tu.tickets_id = t.id AND tu.users_id = $users_id)
-            OR EXISTS (SELECT 1 FROM glpi_groups_tickets gt INNER JOIN glpi_groups_users gu ON gt.groups_id = gu.groups_id WHERE gt.tickets_id = t.id AND gu.users_id = $users_id)
-        )
-)";
+        AND $actor_condition";
 }
 
-// Consulta base sem LIMIT e sem ORDER BY
-$combined_query_base = "(
-    -- Acompanhamentos (Followups) - Qualquer envolvimento diretamente ou por grupo
-    SELECT
-        t.id AS ticket_id,
-        t.name AS ticket_name,
-        t.content AS ticket_content,
-        t.status AS ticket_status,
-        tf.id AS followup_id,
-        tf.date AS notification_date,
-        tf.content AS followup_content,
-        u.name AS user_name,
-        NULL AS group_name,
-        NULL AS refuse_reason,
-        'followup' AS notification_type
-    FROM
-        glpi_tickets t
-        INNER JOIN glpi_itilfollowups tf ON t.id = tf.items_id AND tf.itemtype = 'Ticket'
-        LEFT JOIN glpi_users u ON tf.users_id = u.id
-        LEFT JOIN glpi_plugin_ticketanswers_views v ON (
-            v.users_id = $users_id AND
-            v.followup_id = CAST(tf.id AS CHAR)
-        )
-    WHERE
-        tf.users_id <> $users_id
-        AND v.id IS NULL
-        AND t.status != 6
-        AND tf.is_private = 0
-        AND (
-            EXISTS (SELECT 1 FROM glpi_tickets_users tu WHERE tu.tickets_id = t.id AND tu.users_id = $users_id)
-            OR EXISTS (SELECT 1 FROM glpi_groups_tickets gt INNER JOIN glpi_groups_users gu ON gt.groups_id = gu.groups_id WHERE gt.tickets_id = t.id AND gu.users_id = $users_id)
-        )
-        AND tf.date > (
-            SELECT COALESCE(MAX(date), '1970-01-01')
-            FROM glpi_itilfollowups tf2
-            WHERE tf2.items_id = t.id AND tf2.itemtype = 'Ticket' AND tf2.users_id = $users_id
-        )
-)
-UNION
-(
-    -- Chamados associados sem novos acompanhamentos (como observador ou qualquer papel)
-    SELECT
-        t.id AS ticket_id,
-        t.name AS ticket_name,
-        t.content AS ticket_content,
-        t.status AS ticket_status,
-        t.id + 20000000 AS followup_id,
-        t.date_mod AS notification_date,
-        t.content AS followup_content,
-        u_requester.name AS user_name,
-        NULL AS group_name,
-        NULL AS refuse_reason,
-        'observer' AS notification_type
-    FROM
-        glpi_tickets t
-        LEFT JOIN glpi_users u_requester ON t.users_id_recipient = u_requester.id
-        LEFT JOIN glpi_plugin_ticketanswers_views v ON (
-            v.users_id = $users_id AND
-            v.ticket_id = t.id AND
-            v.followup_id = CAST(t.id + 20000000 AS CHAR)
-        )
-    WHERE
-        v.id IS NULL
-        AND t.status IN (1, 2, 3, 4)
-        AND (
-            EXISTS (SELECT 1 FROM glpi_tickets_users tu WHERE tu.tickets_id = t.id AND tu.users_id = $users_id)
-            OR EXISTS (SELECT 1 FROM glpi_groups_tickets gt INNER JOIN glpi_groups_users gu ON gt.groups_id = gu.groups_id WHERE gt.tickets_id = t.id AND gu.users_id = $users_id)
-        )
-)
-UNION
-(
-    -- Notificações de chamados recusados
-    SELECT
-        t.id AS ticket_id,
-        t.name AS ticket_name,
-        t.content AS ticket_content,
-        t.status AS ticket_status,
-        its.id AS followup_id,
-        its.date_approval AS notification_date,
-        its.content AS followup_content,
-        u.realname AS user_name,
-        NULL AS group_name,
-        tf.content AS refuse_reason,
-        'refused' AS notification_type
-    FROM
-        glpi_tickets t
-        INNER JOIN (
-            SELECT items_id, MAX(id) as latest_solution_id
-            FROM glpi_itilsolutions
-            WHERE status = 4 AND itemtype = 'Ticket'
-            GROUP BY items_id
-        ) latest ON t.id = latest.items_id
-        INNER JOIN glpi_itilsolutions its ON its.id = latest.latest_solution_id
-        LEFT JOIN glpi_users u ON its.users_id_approval = u.id
-        LEFT JOIN glpi_itilfollowups tf ON (
-            tf.items_id = t.id 
-            AND tf.itemtype = 'Ticket'
-            AND tf.users_id = its.users_id_approval
-            AND tf.date = its.date_approval
-        )
-        LEFT JOIN glpi_plugin_ticketanswers_views v ON (
-            v.users_id = $users_id AND
-            v.followup_id = CAST(its.id AS CHAR)
-        )
-    WHERE
-        its.users_id_approval <> $users_id
-        AND v.id IS NULL
-        AND t.status != 6
-        AND (
-            EXISTS (SELECT 1 FROM glpi_tickets_users tu WHERE tu.tickets_id = t.id AND tu.users_id = $users_id)
-            OR EXISTS (SELECT 1 FROM glpi_groups_tickets gt INNER JOIN glpi_groups_users gu ON gt.groups_id = gu.groups_id WHERE gt.tickets_id = t.id AND gu.users_id = $users_id)
-        )
-)
-UNION
-(
-    -- Consulta otimizada para todas as validações (como validador ou solicitante)
-    SELECT DISTINCT
-        t.id AS ticket_id,
-        t.name AS ticket_name,
-        t.content AS ticket_content,
-        t.status AS ticket_status,
-        tv.id AS followup_id,
-        tv.submission_date AS notification_date,
-        CONCAT('Solicitação de validação: ', IF(tv.comment_submission IS NOT NULL AND tv.comment_submission != '', 
-               tv.comment_submission, 'Sem comentários adicionais.')) AS followup_content,
-        CASE
-            WHEN tv.users_id_validate = $users_id THEN u_requester.name
-            ELSE u_validator.name
-        END AS user_name,
-        NULL AS group_name,
-        NULL AS refuse_reason,
-        CASE
-            WHEN tv.users_id_validate = $users_id THEN 'validation'
-            ELSE 'validation_request'
-        END AS notification_type
-    FROM
-        glpi_ticketvalidations tv
-        INNER JOIN glpi_tickets t ON tv.tickets_id = t.id AND t.status != 6
-        LEFT JOIN glpi_users u_requester ON tv.users_id = u_requester.id
-        LEFT JOIN glpi_users u_validator ON tv.users_id_validate = u_validator.id
-        LEFT JOIN glpi_plugin_ticketanswers_views v ON (
-            v.users_id = $users_id AND
-            v.ticket_id = t.id AND
-            v.followup_id = CAST(tv.id AS CHAR)
-        )
-    WHERE
-        tv.status = 2 -- Aguardando validação
-        AND v.id IS NULL
-        AND (
-            tv.users_id_validate = $users_id
-            OR EXISTS (
-                SELECT 1 FROM glpi_tickets_users tu
-                WHERE tu.tickets_id = t.id AND tu.users_id = $users_id AND tu.type = 1
-            )
-        )
-        AND tv.submission_date > DATE_SUB(NOW(), INTERVAL 90 DAY)
-)
-UNION
-(
-    -- Respondendo a solicitações de validação para Requerentes
-    SELECT DISTINCT
-        t.id AS ticket_id,
-        t.name AS ticket_name,
-        t.content AS ticket_content,
-        t.status AS ticket_status,
-        CONCAT('validation_response_', tv.id) AS followup_id,
-        tv.validation_date AS notification_date,
-        CASE
-            WHEN tv.status = 3 THEN CONCAT('Sua solicitação de validação foi APROVADA', 
-                                         IF(tv.comment_validation IS NOT NULL AND tv.comment_validation != '',
-                                            CONCAT(': ', tv.comment_validation), 
-                                            ': Sem comentários adicionais.'))
-            WHEN tv.status = 4 THEN CONCAT('Sua solicitação de validação foi RECUSADA', 
-                                         IF(tv.comment_validation IS NOT NULL AND tv.comment_validation != '',
-                                            CONCAT(': ', tv.comment_validation), 
-                                            ': Sem comentários de recusa.'))
-            ELSE 'Validação respondida.'
-        END AS followup_content,
-        u_validator.name AS user_name,
-        NULL AS group_name,
-        tv.comment_validation AS refuse_reason,
-        CASE
-            WHEN tv.status = 3 THEN 'validation_approved'
-            WHEN tv.status = 4 THEN 'validation_refused'
-            ELSE 'validation_response'
-        END AS notification_type
-    FROM
-        glpi_tickets t
-        INNER JOIN glpi_ticketvalidations tv ON t.id = tv.tickets_id AND tv.users_id = $users_id
-        LEFT JOIN glpi_users u_validator ON tv.users_id_validate = u_validator.id
-        LEFT JOIN glpi_plugin_ticketanswers_views v ON (
-            v.users_id = $users_id AND
-            v.ticket_id = t.id AND
-            v.followup_id = CONCAT('validation_response_', tv.id)
-        )
-    WHERE
-        t.status != 6
-        AND (tv.status = 3 OR tv.status = 4)
-        AND v.id IS NULL
-        AND tv.validation_date > DATE_SUB(NOW(), INTERVAL 30 DAY)
-        AND (
-            EXISTS (SELECT 1 FROM glpi_tickets_users tu WHERE tu.tickets_id = t.id AND tu.users_id = $users_id)
-            OR EXISTS (SELECT 1 FROM glpi_groups_tickets gt INNER JOIN glpi_groups_users gu ON gt.groups_id = gu.groups_id WHERE gt.tickets_id = t.id AND gu.users_id = $users_id)
-        )
-)
-UNION
-(
-    -- Notificações de mudanças de status em chamados do usuário
-    SELECT
-        t.id AS ticket_id,
-        t.name AS ticket_name,
-        t.content AS ticket_content,
-        t.status AS ticket_status,
-        CONCAT('status_', t.id, '_', t.status) AS followup_id,
-        t.date_mod AS notification_date,
-        CONCAT('Status alterado para: ',
-               CASE
-                  WHEN t.status = 1 THEN 'Novo'
-                  WHEN t.status = 2 THEN 'Em atendimento'
-                  WHEN t.status = 4 THEN 'Pendente'
-                  WHEN t.status = 5 THEN 'Solucionado'
-                  WHEN t.status = 6 THEN 'Fechado'
-                  ELSE 'Outro status'
-               END) AS followup_content,
-        NULL AS user_name,
-        NULL AS group_name,
-        NULL AS refuse_reason,
-        'status_change' AS notification_type
-    FROM
-        glpi_tickets t
-        LEFT JOIN glpi_plugin_ticketanswers_views v ON (
-            v.users_id = $users_id AND
-            v.ticket_id = t.id AND
-            (
-                v.followup_id = CONCAT('status_', t.id, '_', t.status) OR
-                v.followup_id = CONCAT('status_', t.id, '_any')
-            )
-        )
-    WHERE
-        v.id IS NULL
-        AND t.status IN (2, 3, 4, 5)
-        AND t.date_mod > DATE_SUB(NOW(), INTERVAL 7 DAY)
-        AND (
-            EXISTS (SELECT 1 FROM glpi_tickets_users tu WHERE tu.tickets_id = t.id AND tu.users_id = $users_id)
-            OR EXISTS (SELECT 1 FROM glpi_groups_tickets gt INNER JOIN glpi_groups_users gu ON gt.groups_id = gu.groups_id WHERE gt.tickets_id = t.id AND gu.users_id = $users_id)
-        )
+// 9. Novos Chamados / Observadores Associados
+$union_parts[] = "SELECT
+    t.id AS ticket_id,
+    t.name AS ticket_name,
+    t.content AS ticket_content,
+    t.status AS ticket_status,
+    CAST(t.id + 20000000 AS CHAR) AS followup_id,
+    t.date_creation AS notification_date,
+    t.content AS followup_content,
+    u_requester.name AS user_name,
+    NULL AS group_name,
+    NULL AS refuse_reason,
+    'observer' AS notification_type
+FROM
+    glpi_tickets t
+    LEFT JOIN glpi_users u_requester ON t.users_id_recipient = u_requester.id
+    LEFT JOIN glpi_plugin_ticketanswers_views v ON (
+        v.users_id = $users_id AND
+        v.ticket_id = t.id AND
+        v.followup_id = CAST(t.id + 20000000 AS CHAR)
     )
-";
+WHERE
+    v.id IS NULL
+    AND t.status IN (1, 2, 3, 4)
+    AND t.date_creation > DATE_SUB(NOW(), INTERVAL 7 DAY)
+    AND $actor_condition";
 
-$combined_query_base .= $pending_reason_union;
+$combined_query_base = implode(" UNION ", $union_parts);
 
-// Consulta para contar o total de notificações únicas por chamado (sem LIMIT)
-$count_query = "
-SELECT COUNT(*) as total FROM (
-    SELECT ticket_id
-    FROM ($combined_query_base) as inner_count_query
-    GROUP BY ticket_id
-) as unique_notifications";
+// Consulta para contar o total de chamados únicos com notificações (para paginação)
+$count_query = "SELECT COUNT(DISTINCT ticket_id) as total FROM ($combined_query_base) as count_base";
 
 // Executar a consulta de contagem
-$count_result = $DB->query($count_query);
+$count_result = $DB->doQuery($count_query);
 $total_notifications = 0;
 if ($count_result && $DB->numrows($count_result) > 0) {
     $total_data = $DB->fetchAssoc($count_result);
-    $total_notifications = $total_data['total'];
+    $total_notifications = intval($total_data['total']);
 }
 
 // Calcular total de páginas
@@ -674,25 +680,27 @@ if ($current_page > $total_pages && $total_pages > 0) {
     $offset_value = ($current_page - 1) * $notifications_per_page;
 }
 
-// Consulta principal simplificada com subconsulta para garantir a exclusividade por chamado (o mais recente)
+// Consulta principal com Window Functions (MariaDB 10.2+) para agrupar por chamado e selecionar a interação mais recente com contagem exata
 $combined_query = "
-SELECT outer_query.*, latest_filter.total_count
-FROM ($combined_query_base) AS outer_query
-INNER JOIN (
-    -- Subconsulta para pegar apenas a notificação mais recente por ticket e a contagem total
-    SELECT ticket_id, MAX(notification_date) as latest_date, COUNT(*) as total_count
-    FROM ($combined_query_base) as inner_base
-    GROUP BY ticket_id
-) as latest_filter ON 
-    outer_query.ticket_id = latest_filter.ticket_id AND 
-    outer_query.notification_date = latest_filter.latest_date
-GROUP BY outer_query.ticket_id
-ORDER BY outer_query.notification_date DESC
+SELECT * FROM (
+    SELECT 
+        base.*,
+        COUNT(*) OVER (PARTITION BY base.ticket_id) as total_count,
+        ROW_NUMBER() OVER (PARTITION BY base.ticket_id ORDER BY base.notification_date DESC, base.followup_id DESC) as rn
+    FROM ($combined_query_base) as base
+) as ranked
+WHERE ranked.rn = 1
+ORDER BY ranked.notification_date DESC
 LIMIT $notifications_per_page OFFSET $offset_value";
 
 // Executar a consulta principal
-$result = $DB->query($combined_query);
-$numNotifications = $DB->numrows($result);
+$result = $DB->doQuery($combined_query);
+$numNotifications = 0;
+if ($result) {
+    $numNotifications = $DB->numrows($result);
+} else {
+    error_log("Erro na consulta de notificações: " . $DB->error());
+}
 
 // Log para depuração
 error_log("DEBUG: notifications_per_page=$notifications_per_page, total_notifications=$total_notifications, numNotifications=$numNotifications");
@@ -793,7 +801,7 @@ if ($result && $numNotifications > 0) {
         $notification_type = $data['notification_type'];
         // Determinar o ID da linha para cada tipo de notificação
 $row_id = "";
-if ($notification_type == 'followup' || $notification_type == 'refused') {
+if ($notification_type == 'followup' || $notification_type == 'refused' || $notification_type == 'task' || $notification_type == 'solution') {
     // IDs simples para tipos básicos
     $row_id = "notification-row-" . $data['ticket_id'] . "-" . $data['followup_id'];
 } elseif (strpos($notification_type, 'validation') !== false) {
@@ -818,7 +826,7 @@ if ($notification_type == 'status_change') {
           data-ticket-id='" . $data['ticket_id'] . "' 
           class='tab_bg_" . ($i % 2 + 1) . "'>";
 } else {
-    echo "<tr id='$row_id' class='tab_bg_" . ($i % 2 + 1) . "'>";
+    echo "<tr id='$row_id' data-ticket-id='" . $data['ticket_id'] . "' class='tab_bg_" . ($i % 2 + 1) . "'>";
 }
         // Nº do Chamado
         echo "<td>" . $data['ticket_id'] . "</td>";
@@ -835,6 +843,12 @@ switch ($notification_type) {
     // Tipos de Resposta/Interação
     case 'followup':
         echo "<span class='badge bg-info text-white'>" . __("Resposta", "ticketanswers") . "</span>";
+        break;
+    case 'task':
+        echo "<span class='badge bg-info text-white'>" . __("Tarefa", "ticketanswers") . "</span>";
+        break;
+    case 'solution':
+        echo "<span class='badge bg-success text-white'>" . __("Solução", "ticketanswers") . "</span>";
         break;
     case 'refused':
         echo "<span class='badge bg-danger text-white'>" . __("Recusado", "ticketanswers") . "</span>";
@@ -915,6 +929,10 @@ switch ($notification_type) {
 echo "<td>";
 if ($notification_type == 'followup') {
     echo $data['user_name']; // Nome do usuário que respondeu
+} elseif ($notification_type == 'task') {
+    echo $data['user_name'] . " <small>(" . __("adicionou tarefa", "ticketanswers") . ")</small>";
+} elseif ($notification_type == 'solution') {
+    echo $data['user_name'] . " <small>(" . __("propôs solução", "ticketanswers") . ")</small>";
 } elseif ($notification_type == 'group' || $notification_type == 'group_observer') {
     echo $data['user_name'] . " <small>(" . __("para grupo", "ticketanswers") . ": " . $data['group_name'] . ")</small>";
 } elseif ($notification_type == 'refused') {
@@ -1073,6 +1091,9 @@ echo "</td>";
                 case 'technician_response':
                 case 'status_change':
                 case 'pending_reason':
+                case 'task':
+                case 'solution':
+                default:
                     // Link para ver na mesma aba
                     echo "<a href='javascript:void(0)' onclick='markNotificationAsRead(" . $data['ticket_id'] . ", \"" . $data['followup_id'] . "\", \"" . $notification_type . "\", false)' class='btn btn-info' title='" . __("Ver chamado", "ticketanswers") . "'>
                     <i class='fas fa-eye'></i>
