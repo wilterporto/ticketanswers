@@ -2,7 +2,7 @@
 /*
   -------------------------------------------------------------------------
   Ticket Answers
-  Copyright (C) 2023 by Jeferson Penna Alves
+  Copyright (C) 2023-2026 by Wilter Porto
   -------------------------------------------------------------------------
   LICENSE
   This file is part of Ticket Answers.
