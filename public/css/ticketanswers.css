@@ -101,48 +101,213 @@
     color: var(--ta-primary);
 }
 
-/* Estilização da Tabela */
-table.tab_cadre_fixehov {
-    border-collapse: separate;
-    border-spacing: 0;
+/* Container de Notificações */
+#notifications-container {
     width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box;
+    margin: 15px auto;
+}
+
+/* Wrapper responsivo da tabela */
+.ta-table-responsive {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
     border-radius: var(--ta-radius);
-    overflow: hidden;
-    border: 1px solid #f1f3f5;
-    margin-top: 20px;
+    border: 1px solid #e9ecef;
+    background: #fff;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    margin-bottom: 20px;
+    box-sizing: border-box;
+}
+
+/* Estilização da Tabela com layout fixo sem estouro */
+table.tab_cadre_fixehov.ta-notifications-table,
+table.tab_cadre_fixehov {
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    table-layout: fixed !important;
+    border: none !important;
+    margin: 0 !important;
+    box-sizing: border-box;
 }
 
 table.tab_cadre_fixehov th {
     background-color: #f8f9fa !important;
-    padding: 15px 12px !important;
+    padding: 12px 8px !important;
     font-weight: 600 !important;
-    font-size: 13px !important;
+    font-size: 12px !important;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    border-bottom: 2px solid #edeff2 !important;
+    border-bottom: 2px solid #dee2e6 !important;
     color: #495057 !important;
+    vertical-align: middle !important;
+    box-sizing: border-box;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 table.tab_cadre_fixehov td {
-    padding: 16px 12px !important;
-    font-size: 14px !important;
+    padding: 10px 8px !important;
+    font-size: 13px !important;
     vertical-align: middle !important;
     border-bottom: 1px solid #f1f3f5 !important;
+    box-sizing: border-box;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 table.tab_cadre_fixehov tr:hover td {
     background-color: #f1f8ff !important;
-    cursor: pointer;
+}
+
+/* Definições de larguras e alinhamentos por coluna */
+table.tab_cadre_fixehov th.col-id,
+table.tab_cadre_fixehov td.col-id {
+    width: 100px !important;
+    min-width: 100px !important;
+    max-width: 100px !important;
+    text-align: center !important;
+    font-weight: 600;
+}
+
+table.tab_cadre_fixehov th.col-ticket,
+table.tab_cadre_fixehov td.col-ticket {
+    width: 16% !important;
+    min-width: 130px !important;
+    text-align: left !important;
+}
+
+table.tab_cadre_fixehov th.col-date,
+table.tab_cadre_fixehov td.col-date {
+    width: 135px !important;
+    min-width: 135px !important;
+    max-width: 140px !important;
+    text-align: center !important;
+    font-size: 12px !important;
+    color: #6c757d;
+}
+
+table.tab_cadre_fixehov th.col-type,
+table.tab_cadre_fixehov td.col-type {
+    width: 135px !important;
+    min-width: 135px !important;
+    max-width: 140px !important;
+    text-align: center !important;
+}
+
+table.tab_cadre_fixehov th.col-qty,
+table.tab_cadre_fixehov td.col-qty {
+    width: 55px !important;
+    min-width: 55px !important;
+    max-width: 55px !important;
+    text-align: center !important;
+}
+
+table.tab_cadre_fixehov th.col-status,
+table.tab_cadre_fixehov td.col-status {
+    width: 115px !important;
+    min-width: 115px !important;
+    max-width: 120px !important;
+    text-align: center !important;
+}
+
+table.tab_cadre_fixehov th.col-user,
+table.tab_cadre_fixehov td.col-user {
+    width: 15% !important;
+    min-width: 125px !important;
+    text-align: left !important;
+}
+
+table.tab_cadre_fixehov th.col-content,
+table.tab_cadre_fixehov td.col-content {
+    width: auto !important;
+    min-width: 150px !important;
+    text-align: left !important;
+}
+
+/* Coluna de Ações perfeitamente alinhada e compacta */
+table.tab_cadre_fixehov th.col-actions,
+table.tab_cadre_fixehov td.col-actions {
+    width: 95px !important;
+    min-width: 95px !important;
+    max-width: 95px !important;
+    text-align: center !important;
+    vertical-align: middle !important;
+    white-space: nowrap !important;
+    padding: 6px 4px !important;
+}
+
+/* Container dos botões de ação */
+.ta-action-buttons {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 4px !important;
+    white-space: nowrap !important;
+    vertical-align: middle !important;
+    margin: 0 auto !important;
+}
+
+/* Botões de Ação na Tabela */
+.ta-action-buttons .ta-btn-action,
+table.tab_cadre_fixehov td.col-actions .btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 32px !important;
+    min-width: 32px !important;
+    max-width: 32px !important;
+    height: 30px !important;
+    padding: 0 !important;
+    border-radius: 6px !important;
+    font-size: 13px !important;
+    line-height: 1 !important;
+    margin: 0 2px !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
+    transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+}
+
+.ta-action-buttons .ta-btn-action:hover,
+table.tab_cadre_fixehov td.col-actions .btn:hover {
+    transform: translateY(-1px) !important;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2) !important;
+}
+
+.ta-action-buttons .btn-info {
+    background-color: #0dcaf0 !important;
+    border-color: #0dcaf0 !important;
+    color: #fff !important;
+}
+
+.ta-action-buttons .btn-secondary {
+    background-color: #6c757d !important;
+    border-color: #6c757d !important;
+    color: #fff !important;
+}
+
+.ta-action-buttons .btn-success {
+    background-color: #198754 !important;
+    border-color: #198754 !important;
+    color: #fff !important;
 }
 
 /* Estilo para Badges (Tipos e Status) */
 .badge {
-    padding: 6px 12px !important;
+    padding: 5px 10px !important;
     border-radius: 50px !important;
     font-weight: 500 !important;
     font-size: 11px !important;
     text-transform: uppercase;
     box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    display: inline-block;
+    white-space: nowrap;
 }
 
 .bg-info { background: #0dcaf0 !important; color: #fff !important; }
@@ -162,8 +327,8 @@ tr[id^="notification-row"] {
     animation: fadeIn 0.4s ease forwards;
 }
 
-/* Botões Modernos */
-.btn {
+/* Botões da Barra de Ferramentas */
+.ta-toolbar .btn {
     border-radius: 6px !important;
     padding: 8px 16px !important;
     transition: all 0.2s ease !important;
@@ -181,10 +346,6 @@ tr[id^="notification-row"] {
     background-color: #d17500 !important;
     transform: translateY(-1px);
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-}
-
-.btn-group .btn {
-    margin: 0 2px;
 }
 
 /* Paginação e Selos Compactos */

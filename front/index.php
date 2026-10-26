@@ -1,6 +1,16 @@
 <?php
 if (!defined('GLPI_ROOT')) {
-    include (__DIR__ . "/../../../inc/includes.php");
+    $glpi_root = dirname(__DIR__, 3);
+    if (file_exists($glpi_root . '/vendor/autoload.php')) {
+        require_once $glpi_root . '/vendor/autoload.php';
+        $kernel = new \Glpi\Kernel\Kernel();
+        $kernel->boot();
+        if (class_exists('Session') && method_exists('Session', 'start')) {
+            Session::start();
+        }
+    } elseif (file_exists($glpi_root . '/inc/includes.php')) {
+        include ($glpi_root . "/inc/includes.php");
+    }
 }
 
 Session::checkLoginUser();
@@ -9,9 +19,212 @@ global $DB;
 Html::header("Ticket Answers", $_SERVER['PHP_SELF'], "plugins", "ticketanswers");
 
 // Carregar CSS primeiro
-echo Html::css("/plugins/ticketanswers/css/ticketanswers.css");
+echo Html::css("/plugins/ticketanswers/public/css/ticketanswers.css");
+echo Html::css("/plugins/ticketanswers/public/css/vol_icone_notification.css");
 
-echo Html::css("/plugins/ticketanswers/css/vol_icone_notification.css");
+// Estilos essenciais integrados para garantir contenção de largura e alinhamento perfeito das ações
+echo "<style>
+#notifications-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    margin: 15px auto;
+}
+
+.ta-table-responsive {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 8px !important;
+    border: 1px solid #dee2e6 !important;
+    background: #ffffff !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05) !important;
+    margin-bottom: 20px !important;
+    box-sizing: border-box !important;
+}
+
+table.tab_cadre_fixehov.ta-notifications-table,
+table.tab_cadre_fixehov {
+    width: 100% !important;
+    max-width: 100% !important;
+    table-layout: fixed !important;
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    box-sizing: border-box !important;
+}
+
+table.tab_cadre_fixehov th {
+    background-color: #f8f9fa !important;
+    color: #495057 !important;
+    font-weight: 600 !important;
+    font-size: 12px !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+    padding: 12px 8px !important;
+    border-bottom: 2px solid #dee2e6 !important;
+    vertical-align: middle !important;
+    box-sizing: border-box !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+table.tab_cadre_fixehov td {
+    padding: 10px 8px !important;
+    font-size: 13px !important;
+    vertical-align: middle !important;
+    border-bottom: 1px solid #f1f3f5 !important;
+    box-sizing: border-box !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+table.tab_cadre_fixehov tr:hover td {
+    background-color: #f1f8ff !important;
+}
+
+table.tab_cadre_fixehov th.col-id,
+table.tab_cadre_fixehov td.col-id {
+    width: 100px !important;
+    min-width: 100px !important;
+    max-width: 100px !important;
+    text-align: center !important;
+    font-weight: 600;
+}
+
+table.tab_cadre_fixehov th.col-ticket,
+table.tab_cadre_fixehov td.col-ticket {
+    width: 16% !important;
+    min-width: 130px !important;
+    text-align: left !important;
+}
+
+table.tab_cadre_fixehov th.col-date,
+table.tab_cadre_fixehov td.col-date {
+    width: 135px !important;
+    min-width: 135px !important;
+    max-width: 140px !important;
+    text-align: center !important;
+    font-size: 12px !important;
+    color: #6c757d;
+}
+
+table.tab_cadre_fixehov th.col-type,
+table.tab_cadre_fixehov td.col-type {
+    width: 135px !important;
+    min-width: 135px !important;
+    max-width: 140px !important;
+    text-align: center !important;
+}
+
+table.tab_cadre_fixehov th.col-qty,
+table.tab_cadre_fixehov td.col-qty {
+    width: 55px !important;
+    min-width: 55px !important;
+    max-width: 55px !important;
+    text-align: center !important;
+}
+
+table.tab_cadre_fixehov th.col-status,
+table.tab_cadre_fixehov td.col-status {
+    width: 115px !important;
+    min-width: 115px !important;
+    max-width: 120px !important;
+    text-align: center !important;
+}
+
+table.tab_cadre_fixehov th.col-user,
+table.tab_cadre_fixehov td.col-user {
+    width: 15% !important;
+    min-width: 125px !important;
+    text-align: left !important;
+}
+
+table.tab_cadre_fixehov th.col-content,
+table.tab_cadre_fixehov td.col-content {
+    width: auto !important;
+    min-width: 150px !important;
+    text-align: left !important;
+}
+
+table.tab_cadre_fixehov th.col-actions,
+table.tab_cadre_fixehov td.col-actions {
+    width: 95px !important;
+    min-width: 95px !important;
+    max-width: 95px !important;
+    text-align: center !important;
+    vertical-align: middle !important;
+    white-space: nowrap !important;
+    padding: 6px 4px !important;
+}
+
+.ta-action-buttons {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 4px !important;
+    white-space: nowrap !important;
+    vertical-align: middle !important;
+    margin: 0 auto !important;
+}
+
+.ta-action-buttons .ta-btn-action,
+table.tab_cadre_fixehov td.col-actions .btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 32px !important;
+    min-width: 32px !important;
+    max-width: 32px !important;
+    height: 30px !important;
+    padding: 0 !important;
+    border-radius: 6px !important;
+    font-size: 13px !important;
+    line-height: 1 !important;
+    margin: 0 2px !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
+    transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+}
+
+.ta-action-buttons .ta-btn-action:hover,
+table.tab_cadre_fixehov td.col-actions .btn:hover {
+    transform: translateY(-1px) !important;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2) !important;
+}
+
+.ta-action-buttons .btn-info {
+    background-color: #0dcaf0 !important;
+    border-color: #0dcaf0 !important;
+    color: #fff !important;
+}
+
+.ta-action-buttons .btn-secondary {
+    background-color: #6c757d !important;
+    border-color: #6c757d !important;
+    color: #fff !important;
+}
+
+.ta-action-buttons .btn-success {
+    background-color: #198754 !important;
+    border-color: #198754 !important;
+    color: #fff !important;
+}
+
+.badge {
+    padding: 5px 10px !important;
+    border-radius: 50px !important;
+    font-weight: 500 !important;
+    font-size: 11px !important;
+    text-transform: uppercase !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    display: inline-block !important;
+    white-space: nowrap !important;
+}
+</style>";
 
 // Obter configurações
 $config = Config::getConfigurationValues('plugin:ticketanswers');
@@ -738,7 +951,7 @@ echo "<div id='notifications-container'>";
 
 if ($result && $numNotifications > 0) {
     // Barra de Ferramentas Premium (Marcar tudo + Paginação)
-    echo "<div class='ta-toolbar d-flex justify-content-between align-items-center' style='margin-bottom: 20px; padding: 10px; background: #f8f9fa; border-radius: 8px;'>";
+    echo "<div class='ta-toolbar d-flex justify-content-between align-items-center' style='margin-bottom: 20px; padding: 10px; background: #f8f9fa; border-radius: 8px; flex-wrap: wrap; gap: 10px;'>";
     
     // Botão Marcar Tudo e Silenciar
     echo "<div style='display: flex; gap: 10px;'>";
@@ -783,18 +996,22 @@ if ($result && $numNotifications > 0) {
     echo "</div>"; // Fim da ta-toolbar
 
     
-    echo "<table class='tab_cadre_fixehov'>";
+    echo "<div class='ta-table-responsive'>";
+    echo "<table class='tab_cadre_fixehov ta-notifications-table'>";
+    echo "<thead>";
     echo "<tr>";
-    echo "<th>" . __("Nº do Chamado", "ticketanswers") . "</th>";
-    echo "<th>" . __("Ticket", "ticketanswers") . "</th>";
-    echo "<th>" . __("Data", "ticketanswers") . "</th>";
-    echo "<th>" . __("Tipo", "ticketanswers") . "</th>";
-    echo "<th>" . __("Qtd", "ticketanswers") . "</th>";
-    echo "<th>" . __("Status", "ticketanswers") . "</th>";
-    echo "<th>" . __("Usuário/Grupo", "ticketanswers") . "</th>";
-    echo "<th>" . __("Conteúdo", "ticketanswers") . "</th>";
-    echo "<th>" . __("Ações", "ticketanswers") . "</th>";
+    echo "<th class='col-id'>" . __("Nº do Chamado", "ticketanswers") . "</th>";
+    echo "<th class='col-ticket'>" . __("Ticket", "ticketanswers") . "</th>";
+    echo "<th class='col-date'>" . __("Data", "ticketanswers") . "</th>";
+    echo "<th class='col-type'>" . __("Tipo", "ticketanswers") . "</th>";
+    echo "<th class='col-qty'>" . __("Qtd", "ticketanswers") . "</th>";
+    echo "<th class='col-status'>" . __("Status", "ticketanswers") . "</th>";
+    echo "<th class='col-user'>" . __("Usuário/Grupo", "ticketanswers") . "</th>";
+    echo "<th class='col-content'>" . __("Conteúdo", "ticketanswers") . "</th>";
+    echo "<th class='col-actions'>" . __("Ações", "ticketanswers") . "</th>";
     echo "</tr>";
+    echo "</thead>";
+    echo "<tbody>";
     
     $i = 0;
     while ($data = $DB->fetchAssoc($result)) {
@@ -829,17 +1046,18 @@ if ($notification_type == 'status_change') {
     echo "<tr id='$row_id' data-ticket-id='" . $data['ticket_id'] . "' class='tab_bg_" . ($i % 2 + 1) . "'>";
 }
         // Nº do Chamado
-        echo "<td>" . $data['ticket_id'] . "</td>";
+        echo "<td class='col-id'>" . $data['ticket_id'] . "</td>";
 
         // Ticket
-        echo "<td>" . $data['ticket_name'] . "</td>";
+        $ticket_title = htmlspecialchars($data['ticket_name'] ?? '', ENT_QUOTES, 'UTF-8');
+        echo "<td class='col-ticket' title='$ticket_title'>" . $ticket_title . "</td>";
         
         // Data
-        echo "<td>" . Html::convDateTime($data['notification_date']) . "</td>";
+        echo "<td class='col-date'>" . Html::convDateTime($data['notification_date']) . "</td>";
         
         // Tipo de notificação
-echo "<td>";
-switch ($notification_type) {
+        echo "<td class='col-type'>";
+        switch ($notification_type) {
     // Tipos de Resposta/Interação
     case 'followup':
         echo "<span class='badge bg-info text-white'>" . __("Resposta", "ticketanswers") . "</span>";
@@ -919,14 +1137,14 @@ switch ($notification_type) {
     echo "</td>";
     
     // Qtd
-    echo "<td style='text-align: center; font-weight: bold;'>" . $data['total_count'] . "</td>";
+    echo "<td class='col-qty'><span class='badge bg-primary' style='border-radius: 50px; min-width: 24px; padding: 4px 8px; font-weight: bold;'>" . $data['total_count'] . "</span></td>";
 
     // Status do chamado
-    echo "<td>" . Ticket::getStatus($data['ticket_status']) . "</td>";
+    echo "<td class='col-status'>" . Ticket::getStatus($data['ticket_status']) . "</td>";
 
             
-// Usuário/Grupo
-echo "<td>";
+    // Usuário/Grupo
+    echo "<td class='col-user'>";
 if ($notification_type == 'followup') {
     echo $data['user_name']; // Nome do usuário que respondeu
 } elseif ($notification_type == 'task') {
@@ -957,7 +1175,7 @@ if ($notification_type == 'followup') {
 echo "</td>";
     
             // Conteúdo
-echo "<td>";
+echo "<td class='col-content'>";
 if ($notification_type == 'refused' && !empty($data['refuse_reason'])) {
     // Para chamados recusados, mostrar a razão da recusa
     $refuse_content = $data['refuse_reason'];
@@ -1004,105 +1222,40 @@ if ($notification_type == 'refused' && !empty($data['refuse_reason'])) {
     echo Html::resume_text($plain_text, 100);
 }
 echo "</td>";
-            
+
             // Ações
-            echo "<td class='center'>";
-            echo "<div class='btn-group'>";
+            echo "<td class='col-actions'>";
+            echo "<div class='ta-action-buttons'>";
             switch ($notification_type) {
-                case 'followup':
-                    // Link para ver na mesma aba - Usar a função unificada
-                    echo "<a href='javascript:void(0)' onclick='markNotificationAsRead(" . $data['ticket_id'] . ", \"" . $data['followup_id'] . "\", \"followup\", false)' class='btn btn-info' title='" . __("Ver chamado", "ticketanswers") . "'>
-                    <i class='fas fa-eye'></i>
-                  </a>";
-                    // Link para ver em nova aba
-                    echo "<a href='#' onclick='markNotificationAsRead(" . $data['ticket_id'] . ", \"" . $data['followup_id'] . "\", \"followup\", true); return false;' class='btn btn-secondary' title='" . __("Ver em nova aba", "ticketanswers") . "'>
-                    <i class='fas fa-external-link-alt'></i>
-                  </a>";
-                    break;
-                
                 case 'group':
-                    // Link para ver na mesma aba - Usar função unificada
-                    echo "<a href='javascript:void(0)' onclick='markNotificationAsRead(" . $data['ticket_id'] . ", \"0\", \"group\", false)' class='btn btn-info' title='" . __("Ver chamado", "ticketanswers") . "'>
-                    <i class='fas fa-eye'></i>
-                  </a>";
-                    
+                    // Link para ver na mesma aba
+                    echo "<a href='javascript:void(0)' onclick='markNotificationAsRead(" . $data['ticket_id'] . ", \"0\", \"group\", false)' class='btn btn-info ta-btn-action' title='" . __("Ver chamado", "ticketanswers") . "'>
+                            <i class='fas fa-eye'></i>
+                          </a>";
                     // Botão para assumir o chamado
-                    echo "<a href='javascript:void(0)' onclick='assignTicketToMe(" . $data['ticket_id'] . ")' class='btn btn-success' title='" . __("Assumir chamado", "ticketanswers") . "'>
-                    <i class='fas fa-user-check'></i>
-                  </a>";
+                    echo "<a href='javascript:void(0)' onclick='assignTicketToMe(" . $data['ticket_id'] . ")' class='btn btn-success ta-btn-action' title='" . __("Assumir chamado", "ticketanswers") . "'>
+                            <i class='fas fa-user-check'></i>
+                          </a>";
                     break;
                 
                 case 'observer':
                 case 'group_observer':
-                    // Link para ver na mesma aba
-                    echo "<a href='javascript:void(0)' onclick='markNotificationAsRead(" . $data['ticket_id'] . ", \"0\", \"" . $notification_type . "\", false)' class='btn btn-info' title='" . __("Ver chamado", "ticketanswers") . "'>
-                    <i class='fas fa-eye'></i>
-                  </a>";
-                    // Link para ver em nova aba - CORREÇÃO
-                    echo "<a href='#' onclick='markNotificationAsRead(" . $data['ticket_id'] . ", \"0\", \"" . $notification_type . "\", true); return false;' class='btn btn-secondary' title='" . __("Ver em nova aba", "ticketanswers") . "'>
-                    <i class='fas fa-external-link-alt'></i>
-                  </a>";
+                    echo "<a href='javascript:void(0)' onclick='markNotificationAsRead(" . $data['ticket_id'] . ", \"0\", \"" . $notification_type . "\", false)' class='btn btn-info ta-btn-action' title='" . __("Ver chamado", "ticketanswers") . "'>
+                            <i class='fas fa-eye'></i>
+                          </a>";
+                    echo "<a href='#' onclick='markNotificationAsRead(" . $data['ticket_id'] . ", \"0\", \"" . $notification_type . "\", true); return false;' class='btn btn-secondary ta-btn-action' title='" . __("Ver em nova aba", "ticketanswers") . "'>
+                            <i class='fas fa-external-link-alt'></i>
+                          </a>";
                     break;
                     
-                case 'refused':
-                    // Link para ver na mesma aba
-                    echo "<a href='javascript:void(0)' onclick='markNotificationAsRead(" . $data['ticket_id'] . ", \"" . $data['followup_id'] . "\", \"refused\", false)' class='btn btn-info' title='" . __("Ver chamado", "ticketanswers") . "'>
-                    <i class='fas fa-eye'></i>
-                  </a>";
-                    // Link para ver em nova aba
-                    echo "<a href='#' onclick='markNotificationAsRead(" . $data['ticket_id'] . ", \"" . $data['followup_id'] . "\", \"followup\", true); return false;' class='btn btn-secondary' title='" . __("Ver em nova aba", "ticketanswers") . "'>
-                    <i class='fas fa-external-link-alt'></i>
-                  </a>";
-                    break;
-                    
-
-                case 'validation':
-                    // Link para ver na mesma aba
-                    echo "<a href='javascript:void(0)' onclick='markNotificationAsRead(" . $data['ticket_id'] . ", \"" . $data['followup_id'] . "\", \"validation\", false)' class='btn btn-info' title='" . __("Ver chamado", "ticketanswers") . "'>
-                    <i class='fas fa-eye'></i>
-                  </a>";
-                    // Link para ver em nova aba
-                    echo "<a href='#' onclick='markNotificationAsRead(" . $data['ticket_id'] . ", \"" . $data['followup_id'] . "\", \"validation\", true); return false;' class='btn btn-secondary' title='" . __("Ver em nova aba", "ticketanswers") . "'>
-                    <i class='fas fa-external-link-alt'></i>
-                  </a>";
-                    break;
-                
-                case 'validation_request':
-                    // Link para ver na mesma aba
-                    echo "<a href='javascript:void(0)' onclick='markNotificationAsRead(" . $data['ticket_id'] . ", \"" . $data['followup_id'] . "\", \"validation_request\", false)' class='btn btn-info' title='" . __("Ver chamado", "ticketanswers") . "'>
-                    <i class='fas fa-eye'></i>
-                  </a>";
-                    // Link para ver em nova aba
-                    echo "<a href='#' onclick='markNotificationAsRead(" . $data['ticket_id'] . ", \"" . $data['followup_id'] . "\", \"validation_request\", true); return false;' class='btn btn-secondary' title='" . __("Ver em nova aba", "ticketanswers") . "'>
-                    <i class='fas fa-external-link-alt'></i>
-                  </a>";
-                    break;
-                case 'validation_approved':
-                case 'validation_refused':
-                    // Link para ver na mesma aba
-                    echo "<a href='javascript:void(0)' onclick='markNotificationAsRead(" . $data['ticket_id'] . ", \"" . $data['followup_id'] . "\", \"" . $notification_type . "\", false)' class='btn btn-info' title='" . __("Ver chamado", "ticketanswers") . "'>
-                    <i class='fas fa-eye'></i>
-                  </a>";
-                    // Link para ver em nova aba
-                        echo "<a href='#' onclick='markNotificationAsRead(" . $data['ticket_id'] . ", \"" . $data['followup_id'] . "\", \"" . $notification_type . "\", true); return false;' class='btn btn-secondary' title='" . __("Ver em nova aba", "ticketanswers") . "'>
-                        <i class='fas fa-external-link-alt'></i>
-                      </a>";
-                        break;
-                case 'technician_response':
-                case 'status_change':
-                case 'pending_reason':
-                case 'task':
-                case 'solution':
                 default:
-                    // Link para ver na mesma aba
-                    echo "<a href='javascript:void(0)' onclick='markNotificationAsRead(" . $data['ticket_id'] . ", \"" . $data['followup_id'] . "\", \"" . $notification_type . "\", false)' class='btn btn-info' title='" . __("Ver chamado", "ticketanswers") . "'>
-                    <i class='fas fa-eye'></i>
-                      </a>";
-                    // Link para ver em nova aba
-                    echo "<a href='#' onclick='markNotificationAsRead(" . $data['ticket_id'] . ", \"" . $data['followup_id'] . "\", \"" . $notification_type . "\", true); return false;' class='btn btn-secondary' title='" . __("Ver em nova aba", "ticketanswers") . "'>
-                    <i class='fas fa-external-link-alt'></i>
-                      </a>";
-                      break;
+                    echo "<a href='javascript:void(0)' onclick='markNotificationAsRead(" . $data['ticket_id'] . ", \"" . $data['followup_id'] . "\", \"" . $notification_type . "\", false)' class='btn btn-info ta-btn-action' title='" . __("Ver chamado", "ticketanswers") . "'>
+                            <i class='fas fa-eye'></i>
+                          </a>";
+                    echo "<a href='#' onclick='markNotificationAsRead(" . $data['ticket_id'] . ", \"" . $data['followup_id'] . "\", \"" . $notification_type . "\", true); return false;' class='btn btn-secondary ta-btn-action' title='" . __("Ver em nova aba", "ticketanswers") . "'>
+                            <i class='fas fa-external-link-alt'></i>
+                          </a>";
+                    break;
             }
             echo "</div>";
             echo "</td>";
@@ -1110,11 +1263,13 @@ echo "</td>";
             $i++;
         }
         
+        echo "</tbody>";
         echo "</table>";
+        echo "</div>"; // Fechamento da ta-table-responsive
     
     // Rodapé com info de paginação e controles
-    echo "<div class='ta-footer' style='margin-top: 25px; padding-top: 15px; border-top: 1px solid #eee; color: #6c757d; font-size: 0.9em; display: flex; justify-content: space-between; align-items: center;'>";
-    
+    echo "<div class='ta-footer' style='margin-top: 25px; padding-top: 15px; border-top: 1px solid #eee; color: #6c757d; font-size: 0.9em; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;'>";
+        
     $start_item = $offset_value + 1;
     $end_item = min($offset_value + $notifications_per_page, $total_notifications);
     echo "<div>" . sprintf(__("Exibindo %d-%d de %d notificações", "ticketanswers"), $start_item, $end_item, $total_notifications) . "</div>";

@@ -1,6 +1,16 @@
 <?php
 if (!defined('GLPI_ROOT')) {
-    include (__DIR__ . "/../../../inc/includes.php");
+    $glpi_root = dirname(__DIR__, 3);
+    if (file_exists($glpi_root . '/vendor/autoload.php')) {
+        require_once $glpi_root . '/vendor/autoload.php';
+        $kernel = new \Glpi\Kernel\Kernel();
+        $kernel->boot();
+        if (class_exists('Session') && method_exists('Session', 'start')) {
+            Session::start();
+        }
+    } elseif (file_exists($glpi_root . '/inc/includes.php')) {
+        include ($glpi_root . "/inc/includes.php");
+    }
 }
 
 // Proteção: apenas administradores com direito "config" podem acessar
