@@ -19,7 +19,7 @@
   --------------------------------------------------------------------------
 */
 
-define('PLUGIN_TICKETANSWERS_VERSION', '1.5.0');
+define('PLUGIN_TICKETANSWERS_VERSION', '1.6.0');
 
 
 
@@ -61,8 +61,8 @@ function plugin_version_ticketanswers() {
        'version'        => PLUGIN_TICKETANSWERS_VERSION,
        'author'         => 'Wilter Porto',
        'license'        => 'GPLv2+',
-       'homepage'       => 'https://github.com/jefersonalves/ticketanswers',
-       'minGlpiVersion' => '9.5'
+       'homepage'       => 'https://github.com/wilterporto/ticketanswers',
+       'minGlpiVersion' => '10.0'
     ];
 }
 
